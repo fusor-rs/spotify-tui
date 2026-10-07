@@ -73,8 +73,9 @@ main() {
 
   tar -xzf "$temporary/$archive" -C "$temporary" "$name/spt"
   replacement="$temporary/$name/spt"
-  [ -f "$replacement" ] && [ ! -L "$replacement" ] ||
+  if [ ! -f "$replacement" ] || [ -L "$replacement" ]; then
     fail "archive has no regular spt executable"
+  fi
   chmod 755 "$replacement"
   installed_version=$("$replacement" --version) ||
     fail "downloaded spt could not run; check the runtime requirements in README.md"
