@@ -12,6 +12,10 @@ The terminal interface is written in HTML and CSS with
 
 **In development · v0.1** — See [status and known limitations](#status-and-known-limitations).
 
+<p align="center">
+  <img src="assets/screenshot.svg" alt="spotify-tui playing a search result, with the library sidebar, track list and now-playing bar" width="900">
+</p>
+
 [Get started](#get-started) · [Using spotify-tui](#using-spotify-tui) ·
 [How it works](#how-it-works) · [Status](#status-and-known-limitations) ·
 [Contributing](#contributing)
