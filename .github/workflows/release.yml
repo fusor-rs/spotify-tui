@@ -1,0 +1,168 @@
+name: Release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check:
+    uses: ./.github/workflows/check.yml
+
+  binaries:
+    needs: check
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-22.04, target: x86_64-unknown-linux-gnu }
+          - { os: ubuntu-22.04-arm, target: aarch64-unknown-linux-gnu }
+          - { os: macos-15, target: aarch64-apple-darwin }
+          - { os: macos-15-intel, target: x86_64-apple-darwin }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    env:
+      TARGET: ${{ matrix.target }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+      - name: Read and validate the version
+        id: version
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          version=$(cargo metadata --locked --no-deps --format-version 1 |
+            jq -er '.packages[0].version')
+          if [ "$EVENT_NAME" = release ] && [ "$RELEASE_TAG" != "v$version" ]; then
+            echo "::error::Release tag $RELEASE_TAG must match Cargo.toml version v$version"
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes pkg-config libasound2-dev libssl-dev
+      - run: cargo build --locked --release --target "$TARGET" --bin spt
+      - name: Package and verify the executable
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          name="spotify-tui-$VERSION-$TARGET"
+          staging="$RUNNER_TEMP/$name"
+          artifacts="$RUNNER_TEMP/artifacts/v$VERSION"
+          mkdir -p "$staging" "$artifacts"
+          cp "target/$TARGET/release/spt" LICENSE README.md "$staging/"
+          COPYFILE_DISABLE=1 tar -czf "$artifacts/$name.tar.gz" -C "$RUNNER_TEMP" "$name"
+          cd "$artifacts"
+          shasum -a 256 "$name.tar.gz" > "$name.tar.gz.sha256"
+          export SPOTIFY_TUI_DOWNLOAD_BASE="file://$RUNNER_TEMP/artifacts"
+          export SPOTIFY_TUI_INSTALL="$RUNNER_TEMP/installed spotify-tui"
+          sh "$GITHUB_WORKSPACE/install.sh" "v$VERSION"
+          "$SPOTIFY_TUI_INSTALL/bin/spt" --help
+          cp "$name.tar.gz" "$RUNNER_TEMP/intact.tar.gz"
+          printf 'corrupt download' >> "$name.tar.gz"
+          if sh "$GITHUB_WORKSPACE/install.sh" "$VERSION" > "$RUNNER_TEMP/rejected.log" 2>&1; then
+            echo "::error::Installer accepted a corrupt archive"
+            exit 1
+          fi
+          cat "$RUNNER_TEMP/rejected.log"
+          grep -Fx 'error: checksum mismatch; download the release again' "$RUNNER_TEMP/rejected.log"
+          cmp "$staging/spt" "$SPOTIFY_TUI_INSTALL/bin/spt"
+          mv "$RUNNER_TEMP/intact.tar.gz" "$name.tar.gz"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: spotify-tui-${{ matrix.target }}
+          path: ${{ runner.temp }}/artifacts/v${{ steps.version.outputs.version }}/*
+          if-no-files-found: error
+          compression-level: 0
+
+  attach:
+    if: github.event_name == 'release'
+    needs: binaries
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: spotify-tui-*
+          path: artifacts
+          merge-multiple: true
+      - name: Attach release archives
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: gh release upload "$RELEASE_TAG" artifacts/* --clobber --repo "$GITHUB_REPOSITORY"
+
+  crates-io:
+    if: github.event_name == 'release'
+    needs: binaries
+    runs-on: ubuntu-22.04
+    environment: crates-io
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes pkg-config libasound2-dev libssl-dev
+      - name: Publish an unreleased crate version
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
+        run: |
+          package=$(cargo metadata --locked --no-deps --format-version 1 | jq -er '.packages[0]')
+          name=$(jq -r '.name' <<< "$package")
+          version=$(jq -r '.version' <<< "$package")
+          index="$RUNNER_TEMP/crate-index.json"
+          status=$(curl --silent --show-error --output "$index" --write-out '%{http_code}' \
+            "https://index.crates.io/${name:0:2}/${name:2:2}/$name")
+          case "$status" in
+            200)
+              published=$(jq --slurp --arg version "$version" 'any(.[]; .vers == $version)' "$index")
+              if [ "$published" = true ]; then
+                echo "$name $version is already published."
+                exit 0
+              fi
+              ;;
+            404) ;;
+            *)
+              echo "::error::Registry lookup for $name failed with HTTP $status"
+              exit 1
+              ;;
+          esac
+          cargo publish --locked
+
+  ready:
+    if: github.event_name == 'release'
+    needs: [attach, crates-io]
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Attach the installer
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: gh release upload "$RELEASE_TAG" install.sh --clobber --repo "$GITHUB_REPOSITORY"

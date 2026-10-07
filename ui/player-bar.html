@@ -1,0 +1,31 @@
+<template rust:component="PlayerBar">
+  <section class="now-playing">
+    <div class="track-line">
+      <div class="track-text">
+        <p class="track-title">{{ state.jukebox.track_title() }}</p>
+        <p class="track-details">{{ state.jukebox.track_details() }}</p>
+      </div>
+      <div class="controls">
+        <button class="control" on:click="state.jukebox.command(Command::Previous)">|◀</button>
+        <button class="play" on:click="state.jukebox.toggle_play()">{{
+          if state.jukebox.is_playing() { "‖ Pause" } else { "▶ Play" }
+        }}</button>
+        <button class="control" on:click="state.jukebox.command(Command::Next)">▶|</button>
+        <button class="control" class:on="{{ state.jukebox.shuffle_on() }}"
+                on:click="state.jukebox.toggle_shuffle()">⇄ Shuffle</button>
+        <button class="control" class:on="{{ state.jukebox.repeat_mode() != Repeat::Off }}"
+                on:click="state.jukebox.cycle_repeat()">{{ state.jukebox.repeat_label() }}</button>
+      </div>
+    </div>
+    <div class="progress-line">
+      <p class="time">{{ state.jukebox.elapsed_label() }}</p>
+      <div class="bar" on:resize="state.jukebox.measure_bar(&event)">
+        <p class="bar-text"><span class="played">{{
+          state.jukebox.progress_played()
+        }}</span><span class="left">{{ state.jukebox.progress_left() }}</span></p>
+      </div>
+      <p class="time">{{ state.jukebox.length_label() }}</p>
+      <p class="volume">{{ state.jukebox.volume_label() }}</p>
+    </div>
+  </section>
+</template>

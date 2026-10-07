@@ -1,0 +1,18 @@
+<template rust:component="Help">
+  <section class="overlay">
+    <div class="dialog">
+      <div class="dialog-heading">
+        <h2 class="dialog-title">Keys</h2>
+        <button id="close-help" autofocus on:click="state.jukebox.close_help()">Close  Esc</button>
+      </div>
+      <pre class="keys">Space      play or pause         ↑ ↓        choose a row
+n / p      next / previous       Enter      play the row
+← / →      seek 10 seconds       Esc        go back
++ / -      volume                /  ^F      search
+s          shuffle               o          open the row's album
+r          repeat                a          open the row's artist
+Tab        sidebar ⇄ list        q          quit</pre>
+      <p class="dialog-hint">Music plays on this computer. Other Spotify apps list it as “spotify-tui”.</p>
+    </div>
+  </section>
+</template>

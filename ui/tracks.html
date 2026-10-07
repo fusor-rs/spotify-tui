@@ -1,0 +1,43 @@
+<template rust:component="TrackList">
+  <section class="listing">
+    <div class="listing-heading">
+      <h2 class="listing-title">{{ state.jukebox.listing_title() }}</h2>
+      <p class="listing-summary">{{ state.jukebox.listing_summary() }}</p>
+    </div>
+    <input id="search" bind="state.jukebox.search"
+           class:hidden="{{ !state.jukebox.searching() }}"
+           class:placeholder="{{ state.jukebox.search.with(String::is_empty) }}"
+           on:keydown="state.jukebox.submit_search(&event)"
+           placeholder="Songs or artists… then Enter">
+    <section id="tracks" tabindex="0" autofocus on:resize="state.jukebox.resize(&event)"
+             on:keydown="state.jukebox.navigate(&event)"
+             on:scroll="state.jukebox.navigate(&event)">
+      <table>
+        <thead>
+          <tr>
+            <th class="number">#</th>
+            <th class="title">Title</th>
+            <th class="artist">Artist</th>
+            <th class="album">Album</th>
+            <th class="length">Time</th>
+          </tr>
+        </thead>
+        <tbody>
+          <ForEach items="{{ state.jukebox.rows() }}" key="{{ |row| row.index }}">
+            <tr class:selected="{{ item.get().selected }}" class:playing="{{ item.get().playing }}">
+              <td class="number">{{ item.get().marker }}</td>
+              <td class="title">{{ item.get().title }}</td>
+              <td class="artist">{{ item.get().artist }}</td>
+              <td class="album">{{ item.get().album }}</td>
+              <td class="length">{{ item.get().length }}</td>
+            </tr>
+          </ForEach>
+        </tbody>
+      </table>
+      <If condition="{{ state.jukebox.listing_empty().is_some() }}">
+        <p class="empty">{{ state.jukebox.listing_empty().unwrap_or_default() }}</p>
+      </If>
+    </section>
+    <p class="position">{{ state.jukebox.position() }}</p>
+  </section>
+</template>

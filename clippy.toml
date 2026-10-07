@@ -1,0 +1,7 @@
+too-many-lines-threshold = 60
+too-many-arguments-threshold = 5
+cognitive-complexity-threshold = 15
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+excessive-nesting-threshold = 4
+max-fn-params-bools = 1

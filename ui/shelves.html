@@ -1,0 +1,21 @@
+<template rust:component="Shelves">
+  <section class="shelves" on:keydown="state.jukebox.leave_shelves(&event)">
+    <p class="pane-title">YOUR LIBRARY</p>
+    <button class="shelf" class:current="{{ state.jukebox.searching() }}"
+            on:click="state.jukebox.start_search()">⌕ Search</button>
+    <button class="shelf" class:current="{{ state.jukebox.is_current(&Source::Liked) }}"
+            on:click="state.jukebox.open_shelf(Source::Liked)">♥ Liked Songs</button>
+    <button class="shelf" class:current="{{ state.jukebox.is_current(&Source::Recent) }}"
+            on:click="state.jukebox.open_shelf(Source::Recent)">◷ Recently played</button>
+    <p class="pane-title playlists-title">PLAYLISTS</p>
+    <div id="playlists">
+      <ForEach items="{{ state.jukebox.playlists.get() }}" key="{{ |playlist| playlist.uri.clone() }}">
+        <button class="shelf"
+                class:current="{{ state.jukebox.is_current(&Source::Playlist(item.get())) }}"
+                on:click="state.jukebox.open_shelf(Source::Playlist(item.get()))">{{
+          item.get().name.clone()
+        }}</button>
+      </ForEach>
+    </div>
+  </section>
+</template>

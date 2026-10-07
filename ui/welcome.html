@@ -1,0 +1,22 @@
+<template rust:component="Welcome">
+  <section class="welcome">
+    <div class="welcome-card">
+      <pre class="welcome-logo">{{ LOGO.trim_end_matches('\n') }}</pre>
+      <h1 class="welcome-title">spotify-tui</h1>
+      <p class="welcome-tagline">Your music, in the terminal.</p>
+      <If condition="{{ matches!(state.jukebox.screen.get(), Screen::LoggedOut | Screen::Failed(_)) }}">
+        <button id="log-in" class="primary" autofocus
+                on:click="state.jukebox.log_in()">Log in with Spotify  ↵</button>
+      </If>
+      <p class="welcome-status"
+         class:error="{{ matches!(state.jukebox.screen.get(), Screen::Failed(_)) }}">{{
+        state.jukebox.welcome_status()
+      }}</p>
+      <If condition="{{ !state.jukebox.login_url().is_empty() }}">
+        <p class="welcome-hint">Browser didn't open? <a
+          href="{{ state.jukebox.login_url() }}">Open the Spotify login page</a></p>
+      </If>
+      <p class="welcome-note">Playback needs Spotify Premium · Ctrl+C quits</p>
+    </div>
+  </section>
+</template>

@@ -1,0 +1,120 @@
+main { height: 100%; color: #FFFFFF; background-color: #121212; }
+button { font-weight: normal; }
+button:focus { color: #FFFFFF; background-color: #2A2A2A; text-decoration: underline; }
+.hidden { display: none; }
+.error { color: #F15E6C; }
+.placeholder { color: #6A6A6A; font-style: italic; }
+
+.welcome {
+  height: 100%;
+  flex-grow: 1;
+  justify-content: center;
+  align-items: center;
+  padding: 1ch;
+  overflow: auto;
+}
+.welcome-card { width: 60ch; max-width: 100%; align-items: center; gap: 1ch; }
+.welcome-logo { color: #1DB954; }
+.welcome-title { color: #FFFFFF; }
+.welcome-tagline, .welcome-note, .welcome-hint { color: #B3B3B3; }
+.welcome-note { color: #6A6A6A; }
+.welcome-status { white-space: normal; }
+.primary { color: #121212; background-color: #1DB954; font-weight: bold; padding: 0 2ch; }
+.primary:focus { color: #121212; background-color: #1ED760; text-decoration: none; }
+
+.topbar { flex-direction: row; height: 1ch; gap: 2ch; padding: 0 1ch; }
+.brand { white-space: pre; font-weight: bold; }
+.equalizer { color: #1DB954; }
+.topbar-fill { flex-grow: 1; }
+
+.body { flex-direction: row; flex-grow: 1; flex-shrink: 1; min-height: 0; }
+.shelves {
+  width: 28ch;
+  flex-shrink: 0;
+  min-height: 0;
+  border-style: rounded;
+  border-color: #2A2A2A;
+}
+.pane-title { height: 1ch; padding: 0 1ch; color: #6A6A6A; }
+.playlists-title { padding: 1ch 1ch 0 1ch; height: 2ch; }
+.shelf { height: 1ch; padding: 0 1ch; white-space: pre; overflow: hidden; color: #B3B3B3; }
+.shelf:focus { color: #FFFFFF; background-color: #2A2A2A; text-decoration: none; }
+.current { color: #1DB954; font-weight: bold; }
+#playlists { flex-grow: 1; flex-shrink: 1; min-height: 0; overflow: auto; }
+
+.listing { flex-grow: 1; flex-shrink: 1; min-width: 0; min-height: 0; padding: 0 1ch; }
+.listing-heading { flex-direction: row; height: 1ch; gap: 2ch; padding: 0 1ch; }
+.listing-title { flex-grow: 1; flex-shrink: 1; min-width: 0; white-space: pre; overflow: hidden; }
+.listing-summary { color: #B3B3B3; white-space: pre; }
+input { width: 100%; height: 3ch; border-style: rounded; border-color: #3E3E3E; padding: 0 1ch; }
+input:focus { border-color: #1DB954; border-style: solid; }
+#tracks {
+  flex-grow: 1;
+  flex-shrink: 1;
+  min-height: 0;
+  overflow: hidden;
+  border-style: rounded;
+  border-color: #2A2A2A;
+  padding: 0 1ch;
+}
+#tracks:focus { border-style: solid; border-color: #1DB954; }
+tr { height: 1ch; }
+th { color: #6A6A6A; font-weight: normal; }
+th, td { padding: 0 1ch 0 0; white-space: pre; overflow: hidden; }
+.number { width: 5ch; flex-shrink: 0; color: #6A6A6A; }
+.title { width: 0; flex-grow: 3; flex-shrink: 1; min-width: 0; }
+.artist, .album { width: 0; flex-grow: 2; flex-shrink: 1; min-width: 0; color: #B3B3B3; }
+.length { width: 8ch; flex-shrink: 0; color: #B3B3B3; }
+.selected { background-color: #2A2A2A; }
+.playing { color: #1DB954; font-weight: bold; }
+.empty { padding: 1ch; color: #B3B3B3; }
+.position { height: 1ch; padding: 0 1ch; color: #6A6A6A; white-space: pre; overflow: hidden; }
+
+.now-playing {
+  height: 5ch;
+  flex-shrink: 0;
+  border-style: rounded;
+  border-color: #1DB954;
+  padding: 0 1ch;
+}
+.track-line { flex-direction: row; height: 2ch; gap: 2ch; }
+.track-text { flex-grow: 1; flex-shrink: 1; min-width: 0; }
+.track-title { height: 1ch; font-weight: bold; white-space: pre; overflow: hidden; }
+.track-details { height: 1ch; color: #B3B3B3; white-space: pre; overflow: hidden; }
+.controls { flex-direction: row; height: 1ch; gap: 1ch; }
+.control { color: #B3B3B3; }
+.play { color: #FFFFFF; font-weight: bold; }
+.on { color: #1DB954; }
+.progress-line { flex-direction: row; height: 1ch; gap: 1ch; }
+.time { width: 7ch; flex-shrink: 0; color: #B3B3B3; white-space: pre; }
+.bar { flex-grow: 1; flex-shrink: 1; min-width: 0; }
+.bar-text { white-space: pre; overflow: hidden; }
+.played { color: #1DB954; }
+.left { color: #3E3E3E; }
+.volume { color: #B3B3B3; white-space: pre; }
+
+.notice { height: 1ch; padding: 0 1ch; white-space: pre; overflow: hidden; color: #1DB954; }
+
+.overlay {
+  flex-grow: 1;
+  flex-shrink: 1;
+  min-height: 0;
+  align-items: center;
+  justify-content: center;
+  padding: 1ch;
+}
+.dialog {
+  width: 72ch;
+  max-width: 100%;
+  max-height: 100%;
+  min-height: 0;
+  flex-shrink: 1;
+  border-style: rounded;
+  border-color: #1DB954;
+  padding: 0 1ch;
+  gap: 1ch;
+}
+.dialog-heading { flex-direction: row; height: 1ch; }
+.dialog-title { flex-grow: 1; }
+.dialog-hint { color: #B3B3B3; }
+.keys { color: #FFFFFF; overflow: auto; }

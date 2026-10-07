@@ -1,0 +1,42 @@
+name: Check
+
+on: [push, pull_request, workflow_call]
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, macos-15]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes pkg-config libasound2-dev libssl-dev shellcheck
+      - run: sh -n install.sh
+      - name: Lint the installer
+        if: runner.os == 'Linux'
+        run: shellcheck --shell=sh install.sh
+      - run: cargo fmt --all -- --check
+      - run: cargo clippy --all-targets --locked -- -D warnings
+      - run: cargo test --locked
+      - name: Verify the crate package
+        run: cargo publish --locked --dry-run
+      - name: Run the executable
+        run: |
+          cargo run --locked --bin spt -- --version
+          cargo run --locked --bin spt -- --help
