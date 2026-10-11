@@ -46,7 +46,7 @@ main() {
   version=${version#v}
   case "$version" in
     '' | [!0-9]* | *[!0-9A-Za-z.+-]*)
-      fail "invalid version; use a release version such as v0.1.0"
+      fail "invalid version; use a release version such as v0.1.1"
       ;;
   esac
 

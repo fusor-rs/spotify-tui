@@ -10,7 +10,7 @@ The terminal interface is written in HTML and CSS with
 [Fusor](https://github.com/fusor-rs/fusor). Login, browsing and audio use
 [librespot](https://github.com/librespot-org/librespot).
 
-**In development · v0.1** — See [status and known limitations](#status-and-known-limitations).
+**In development · v0.1.1** — See [status and known limitations](#status-and-known-limitations).
 
 <p align="center">
   <img src="assets/screenshot.svg" alt="spotify-tui playing a search result, with the library sidebar, track list and now-playing bar" width="900">
@@ -42,7 +42,7 @@ spt
 ```
 
 Add the `export` line to your shell profile, such as `~/.zshrc` or `~/.bashrc`.
-Run the installer again to upgrade. To choose a release, append `-s -- v0.1.0`
+Run the installer again to upgrade. To choose a release, append `-s -- v0.1.1`
 to `sh`, or set `SPOTIFY_TUI_VERSION` on the `sh` command. Set
 `SPOTIFY_TUI_INSTALL` on that command to choose another install directory; the
 executable goes in its `bin/`.
@@ -217,7 +217,7 @@ the packaged crate, and launches the executable's help and version commands.
 Create a GitHub environment named `crates-io` with a `CARGO_REGISTRY_TOKEN` secret
 authorized to publish `fusor-spotify-tui`. Commit the release version in
 `Cargo.toml` and `Cargo.lock`, then publish a GitHub release with the matching
-`vVERSION` tag, such as `v0.1.0`.
+`vVERSION` tag, such as `v0.1.1`.
 
 The [Release workflow](.github/workflows/release.yml) runs Check, validates the
 tag against the manifest, and builds x86-64 and ARM64 executables on Linux and

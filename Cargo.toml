@@ -1,6 +1,6 @@
 [package]
 name = "fusor-spotify-tui"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2024"
 license = "MIT"
 description = "A Spotify client for the terminal, written in HTML with Hypercmd"
