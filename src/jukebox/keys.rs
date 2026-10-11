@@ -46,6 +46,7 @@ impl Jukebox {
             Key::Char('r') => self.cycle_repeat(),
             Key::Char('o') => self.open_album(),
             Key::Char('a') => self.open_artist(),
+            Key::Char('z') => self.queue_selected()?,
             Key::Char('/') => self.start_search(),
             Key::Char('?') => self.open_help(),
             Key::Char('q') => quit()?,

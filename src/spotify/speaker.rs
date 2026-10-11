@@ -1,4 +1,5 @@
 use super::{Catalog, Error, Repeat};
+use http::{HeaderMap, HeaderValue, Method, header::CONTENT_TYPE};
 use librespot_connect::{
     ConnectConfig, LoadContextOptions, LoadRequest, LoadRequestOptions, Options, PlayingTrack,
     Spirc,
@@ -10,6 +11,7 @@ use librespot_playback::{
     mixer::{self, MixerConfig},
     player::{Player, PlayerEventChannel},
 };
+use std::sync::Arc;
 
 /// The name this computer shows in every Spotify Connect device list.
 pub(crate) const DEVICE_NAME: &str = "spotify-tui";
@@ -17,7 +19,8 @@ const INITIAL_VOLUME: u16 = u16::MAX / 2;
 
 /// A Spotify Connect speaker that plays audio on this computer.
 pub(crate) struct Speaker {
-    spirc: Spirc,
+    spirc: Arc<Spirc>,
+    session: Session,
 }
 
 /// A logged-in session: the speaker, its player events and the catalog.
@@ -94,6 +97,12 @@ impl Speaker {
         }?;
         Ok(())
     }
+
+    /// Adds a track after the playing one and any tracks queued before it.
+    pub(crate) fn queue(&self, track: String) -> impl Future<Output = Result<(), Error>> + 'static {
+        let session = self.session.clone();
+        async move { tokio::spawn(add_to_queue(session, track)).await? }
+    }
 }
 
 impl Drop for Speaker {
@@ -114,6 +123,8 @@ async fn start(access_token: String) -> Result<Connection, Error> {
         move || backend(None, AudioFormat::default()),
     );
     let events = player.get_player_event_channel();
+    #[cfg(target_os = "linux")]
+    let media_events = player.get_player_event_channel();
     let config = ConnectConfig {
         name: DEVICE_NAME.into(),
         device_type: DeviceType::Computer,
@@ -123,9 +134,40 @@ async fn start(access_token: String) -> Result<Connection, Error> {
     let credentials = Credentials::with_access_token(access_token);
     let (spirc, task) = Spirc::new(config, session.clone(), credentials, player, mixer).await?;
     tokio::spawn(task);
+    let spirc = Arc::new(spirc);
+    #[cfg(target_os = "linux")]
+    super::mpris::publish(spirc.clone(), media_events);
     Ok(Connection {
-        speaker: Speaker { spirc },
+        speaker: Speaker {
+            spirc,
+            session: session.clone(),
+        },
         events,
         catalog: Catalog::new(session),
     })
+}
+
+/// Asks Spotify to send this speaker an add-to-queue command, as other Spotify apps do.
+async fn add_to_queue(session: Session, track: String) -> Result<(), Error> {
+    let device = session.device_id();
+    let endpoint = format!("/connect-state/v1/player/command/from/{device}/to/{device}");
+    let body = serde_json::json!({
+        "command": {
+            "endpoint": "add_to_queue",
+            "track": { "uri": track, "provider": "queue", "metadata": { "is_queued": "true" } },
+            "logging_params": {},
+        },
+    });
+    let mut headers = HeaderMap::new();
+    headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
+    session
+        .spclient()
+        .request(
+            &Method::POST,
+            &endpoint,
+            Some(headers),
+            Some(body.to_string().as_bytes()),
+        )
+        .await?;
+    Ok(())
 }
