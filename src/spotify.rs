@@ -1,6 +1,8 @@
 mod auth;
 mod catalog;
 mod model;
+#[cfg(target_os = "linux")]
+mod mpris;
 mod speaker;
 
 pub(crate) use auth::{Authorization, Token, forget, stored_refresh_token};

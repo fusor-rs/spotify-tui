@@ -40,6 +40,10 @@ signal-hook = "=0.3.18"
 thiserror = "=2.0.21"
 tokio = { version = "=1.48.0", features = ["rt-multi-thread", "time", "net", "io-util", "sync"] }
 
+[target.'cfg(target_os = "linux")'.dependencies]
+librespot-metadata = "=0.8.0"
+zbus = { version = "=5.19.0", default-features = false, features = ["tokio"] }
+
 [dependencies.fusor]
 package = "fusor-core"
 version = "=0.1.5"

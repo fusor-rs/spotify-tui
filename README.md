@@ -114,9 +114,22 @@ its artist; Escape goes back.
 ### Control playback
 
 The bar at the bottom shows what's playing. Use its buttons or the keyboard to
-pause, skip, seek, change volume, shuffle, or cycle repeat modes. While `spt`
-runs, other Spotify apps list this computer as **spotify-tui**, so you can also
-control its playback from your phone.
+pause, skip, seek, change volume, shuffle, or cycle repeat modes. Press `z` to
+add the selected track to the queue; queued tracks play after the current one.
+While `spt` runs, other Spotify apps list this computer as **spotify-tui**, so
+you can also control its playback from your phone.
+
+On Linux, `spt` registers as an [MPRIS](https://specifications.freedesktop.org/mpris-spec/latest/)
+media player on the session D-Bus, so media keys, desktop widgets, status bars
+and `playerctl` control it without switching to the terminal:
+
+```sh
+playerctl -p spt play-pause
+playerctl -p spt next
+playerctl -p spt metadata --format '{{ artist }} - {{ title }}'
+```
+
+A second running `spt` registers as `spt.instance<PID>`.
 
 ### Keyboard and mouse
 
@@ -136,6 +149,7 @@ buttons, or scroll the track list with the mouse wheel.
 | `↑` / `↓` / `PgUp` / `PgDn` | Choose a row |
 | `Enter` | Play the selected track |
 | `o` / `a` | Open the selected track's album / artist |
+| `z` | Add the selected track to the queue |
 | `Esc` / `Backspace` | Go back |
 | `/` / `Ctrl+F` | Search |
 | `Tab` / `Shift+Tab` | Move between controls and panes |
@@ -170,10 +184,12 @@ spotify-tui is in early development and requires Spotify Premium for playback.
 | Discovery | Catalog search and album / artist navigation |
 | Playback | Local audio, seeking, volume, shuffle and repeat |
 | Spotify Connect | Control this player's playback from other Spotify apps |
+| Queue | Add tracks to the queue |
+| Media controls | MPRIS on Linux, for `playerctl` and media keys |
 | Login storage | macOS Keychain or Linux Secret Service |
 | Terminal platforms | macOS and Linux |
 
-Queue editing, liking tracks, podcasts and controlling other devices from the
+Viewing or reordering the queue, media keys on macOS, liking tracks, podcasts and controlling other devices from the
 terminal are not implemented. Windows is not supported. Spotify's internal
 services are undocumented and can change independently of this app.
 

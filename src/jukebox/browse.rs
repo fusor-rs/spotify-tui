@@ -1,5 +1,5 @@
 use super::{
-    Jukebox,
+    Jukebox, Tone,
     listing::{Listing, Loading, Row, Source},
 };
 use crate::spotify::{self, Catalog, Play, search_uri};
@@ -273,6 +273,32 @@ impl Jukebox {
             Some(artist) => self.drill(Source::Artist(Rc::new(artist))),
             None => self.inform("Select a track to open its artist."),
         }
+    }
+
+    pub(super) fn queue_selected(&self) -> Result<(), Error> {
+        let Some(track) = self.selected() else {
+            self.inform("Select a track to add it to the queue.");
+            return Ok(());
+        };
+        if self.playing_uri().is_none() {
+            self.inform("Play a track first; queued tracks play after it.");
+            return Ok(());
+        }
+        let Some(queued) = self
+            .speaker
+            .borrow()
+            .as_ref()
+            .map(|speaker| speaker.queue(track.uri.clone()))
+        else {
+            return Ok(());
+        };
+        let (notice, clock) = (self.notice.clone(), self.clock.clone());
+        self.spawn(async move {
+            queued.await?;
+            let text = format!("Added “{}” to the queue.", track.name);
+            super::notify(&notice, &clock, text, Tone::Info);
+            Ok(())
+        })
     }
 
     pub(super) fn rows(&self) -> Vec<Row> {
