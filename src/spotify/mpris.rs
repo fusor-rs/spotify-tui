@@ -386,7 +386,13 @@ impl Player {
     }
 
     fn stop(&self) -> fdo::Result<()> {
-        failed(self.spirc.pause())
+        // librespot has no stop that keeps the device active; MPRIS asks that a
+        // later Play start over, so the paused track rewinds. Spirc runs both in order.
+        failed(
+            self.spirc
+                .pause()
+                .and_then(|()| self.spirc.set_position_ms(0)),
+        )
     }
 
     fn play(&self) -> fdo::Result<()> {
