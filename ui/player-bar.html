@@ -1,5 +1,11 @@
 <template rust:component="PlayerBar">
   <section class="now-playing">
+    <div class="cover" class:hidden="{{ !state.jukebox.cover_shown() }}">
+      <p class="cover-row">{{ state.jukebox.cover_row(0) }}</p>
+      <p class="cover-row">{{ state.jukebox.cover_row(1) }}</p>
+      <p class="cover-row">{{ state.jukebox.cover_row(2) }}</p>
+    </div>
+    <div class="now-main">
     <div class="track-line">
       <div class="track-text">
         <p class="track-title">{{ state.jukebox.track_title() }}</p>
@@ -26,6 +32,7 @@
       </div>
       <p class="time">{{ state.jukebox.length_label() }}</p>
       <p class="volume">{{ state.jukebox.volume_label() }}</p>
+    </div>
     </div>
   </section>
 </template>

@@ -30,6 +30,8 @@ pub(crate) enum Error {
     Keychain(#[from] keyring::Error),
     #[error("No audio output is available on this computer")]
     NoAudio,
+    #[error("Cannot read the album cover ({0})")]
+    Cover(String),
     #[error("A Spotify request stopped unexpectedly ({0})")]
     Stopped(#[from] tokio::task::JoinError),
 }

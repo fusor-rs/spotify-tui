@@ -1,3 +1,4 @@
+mod cover;
 mod jukebox;
 mod spotify;
 
@@ -52,5 +53,9 @@ fn run() -> Result<(), Box<dyn std::error::Error>> {
         refresh_token: spotify::stored_refresh_token()?,
     };
     hypercmd::native::run(hypercmd::mount::<Jukebox>(startup)?)?;
+    if cover::supported() {
+        // kitty keeps an image until told otherwise, even once the player is gone.
+        cover::clear()?;
+    }
     Ok(())
 }

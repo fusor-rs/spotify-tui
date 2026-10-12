@@ -1,5 +1,8 @@
 use super::{Jukebox, listing::duration};
-use crate::spotify::{Command, DEVICE_NAME, Mode, Repeat, Speaker, Track};
+use crate::{
+    cover,
+    spotify::{Command, DEVICE_NAME, Error as SpotifyError, Mode, Repeat, Speaker, Track},
+};
 use hypercmd::{Error, Event, EventPayload};
 use librespot_playback::player::{PlayerEvent, PlayerEventChannel};
 use std::{
@@ -109,7 +112,11 @@ impl Jukebox {
 
     fn apply(self: &Rc<Self>, event: PlayerEvent) {
         match event {
-            PlayerEvent::TrackChanged { audio_item } => self.change_track(audio_item.uri),
+            PlayerEvent::TrackChanged { audio_item } => {
+                let covers = audio_item.covers.iter();
+                let cover = cover::pick(covers.map(|image| (image.width, image.url.as_str())));
+                self.change_track(audio_item.uri, cover);
+            }
             PlayerEvent::Playing { position_ms, .. } => {
                 self.now.update(|now| now.report(position_ms, true));
             }
@@ -138,11 +145,12 @@ impl Jukebox {
         }
     }
 
-    fn change_track(self: &Rc<Self>, uri: String) {
+    fn change_track(self: &Rc<Self>, uri: String, cover: Option<String>) {
         self.now.update(|now| {
             now.uri = Some(uri.clone());
             now.track = None;
         });
+        self.change_cover(&uri, cover);
         let Some(catalog) = self.catalog() else {
             return;
         };
@@ -150,6 +158,39 @@ impl Jukebox {
         let started = self.spawn(async move {
             let track = catalog.tracks(vec![uri.clone()]).await?.into_iter().next();
             now.update(|now| now.describe(&uri, track));
+            Ok(())
+        });
+        if let Err(error) = started {
+            self.warn(error.to_string());
+        }
+    }
+
+    /// Shows the cover of `uri`; an album keeps its cover from one track to the next.
+    fn change_cover(&self, uri: &str, url: Option<String>) {
+        if !cover::supported() || self.cover.with_untracked(|shown| *shown == url) {
+            return;
+        }
+        self.cover.set(None);
+        let Some(url) = url else {
+            // Nothing shows the old cover any more; the terminal can free it.
+            if let Err(error) = cover::clear() {
+                self.warn(format!("Cannot read the album cover ({error})"));
+            }
+            return;
+        };
+        let (http, now, shown, uri) = (
+            self.http.clone(),
+            self.now.clone(),
+            self.cover.clone(),
+            uri.to_owned(),
+        );
+        let started = self.spawn(async move {
+            let pixels = cover::fetch(http, url.clone()).await?;
+            // Another track may have started during the download.
+            if now.with_untracked(|now| now.uri.as_deref() == Some(uri.as_str())) {
+                cover::show(&pixels).map_err(|error| SpotifyError::Cover(error.to_string()))?;
+                shown.set(Some(url));
+            }
             Ok(())
         });
         if let Err(error) = started {
@@ -241,6 +282,19 @@ impl Jukebox {
 impl Jukebox {
     pub(super) fn is_playing(&self) -> bool {
         self.now.with(|now| now.playing)
+    }
+
+    pub(super) fn cover_shown(&self) -> bool {
+        cover::supported()
+    }
+
+    /// One row of the cover, or blank cells until the terminal has the image.
+    pub(super) fn cover_row(&self, row: usize) -> String {
+        if self.cover.with(Option::is_some) {
+            cover::row(row)
+        } else {
+            " ".repeat(cover::COLUMNS)
+        }
     }
 
     pub(super) fn track_title(&self) -> String {

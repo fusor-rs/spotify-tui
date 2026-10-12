@@ -131,6 +131,11 @@ playerctl -p spt metadata --format '{{ artist }} - {{ title }}'
 
 A second running `spt` registers as `spt.instance<PID>`.
 
+In [kitty](https://sw.kovidgoyal.net/kitty/), the album cover shows left of the
+player bar. It uses the kitty graphics protocol with Unicode placeholders, so it
+also works inside tmux once `set -g allow-passthrough on` is set. Other terminals
+show the bar without it.
+
 ### Keyboard and mouse
 
 Press `?` in the player to see the controls. Click the sidebar and playback
@@ -186,6 +191,7 @@ spotify-tui is in early development and requires Spotify Premium for playback.
 | Spotify Connect | Control this player's playback from other Spotify apps |
 | Queue | Add tracks to the queue |
 | Media controls | MPRIS on Linux, for `playerctl` and media keys |
+| Album covers | In kitty, including inside tmux |
 | Login storage | macOS Keychain or Linux Secret Service |
 | Terminal platforms | macOS and Linux |
 

@@ -62,6 +62,8 @@ pub(crate) struct Jukebox {
     now: Signal<NowPlaying>,
     clock: Signal<usize>,
     bar_width: Signal<usize>,
+    /// The URL of the cover the terminal shows, once it is there.
+    cover: Signal<Option<String>>,
     help: Signal<bool>,
     notice: Signal<Option<Notice>>,
     root: RefCell<Option<Node>>,
@@ -93,6 +95,7 @@ impl FromInputs for Jukebox {
             now: signal(NowPlaying::default()),
             clock: signal(0),
             bar_width: signal(0),
+            cover: signal(None),
             help: signal(false),
             notice: signal(None),
             root: RefCell::new(None),
