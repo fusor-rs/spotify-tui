@@ -78,7 +78,11 @@ async fn announce(player: &InterfaceRef<Player>, change: Change) -> zbus::Result
     let player = player.get().await;
     match change {
         Change::Nothing => Ok(()),
-        Change::Track => player.metadata_changed(emitter).await,
+        // CanSeek depends on having a track; clients cache it, so it is announced too.
+        Change::Track => {
+            player.metadata_changed(emitter).await?;
+            player.can_seek_changed(emitter).await
+        }
         Change::Status => player.playback_status_changed(emitter).await,
         Change::Volume => player.volume_changed(emitter).await,
         Change::Shuffle => player.shuffle_changed(emitter).await,
