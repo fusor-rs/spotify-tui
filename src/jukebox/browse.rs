@@ -171,12 +171,17 @@ impl Jukebox {
             EventPayload::Input(Input::Key { key, modifiers, .. })
                 if !modifiers.control && !modifiers.alt && !modifiers.super_key =>
             {
-                if !matches!(
-                    key,
-                    Key::Up | Key::Down | Key::PageUp | Key::PageDown | Key::Home | Key::End
-                ) {
-                    return Ok(());
-                }
+                let key = match key {
+                    Key::Char('j') => Key::Down,
+                    Key::Char('k') => Key::Up,
+                    Key::Char('h') => {
+                        self.enter_shelves();
+                        event.prevent_default();
+                        return Ok(());
+                    }
+                    Key::Up | Key::Down | Key::PageUp | Key::PageDown | Key::Home | Key::End => key,
+                    _ => return Ok(()),
+                };
                 self.move_selection(key);
             }
             EventPayload::Input(Input::Scroll { rows, .. }) => {
