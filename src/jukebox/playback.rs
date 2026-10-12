@@ -73,6 +73,14 @@ impl NowPlaying {
         self.stopped = true;
     }
 
+    /// librespot turns repeat-one off on a skip without a RepeatChanged event;
+    /// repeating the list is left as it was.
+    fn skip(&mut self) {
+        if self.repeat == Repeat::Track {
+            self.repeat = Repeat::Context;
+        }
+    }
+
     /// Adds the details of `uri`, unless another track started meanwhile.
     fn describe(&mut self, uri: &str, track: Option<Track>) {
         if self.uri.as_deref() == Some(uri) {
@@ -224,7 +232,13 @@ impl Jukebox {
     }
 
     pub(super) fn command(&self, command: Command) {
-        self.with_speaker(|speaker| speaker.command(command));
+        self.with_speaker(|speaker| {
+            speaker.command(command)?;
+            if command == Command::Next {
+                self.now.update(NowPlaying::skip);
+            }
+            Ok(())
+        });
     }
 
     pub(super) fn toggle_play(&self) -> Result<(), Error> {
@@ -430,8 +444,22 @@ fn label(length: Duration) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::NowPlaying;
+    use super::{NowPlaying, Repeat};
     use std::time::Duration;
+
+    #[test]
+    fn skipping_ends_repeat_one_only() {
+        let mut now = NowPlaying::default();
+        for (before, after) in [
+            (Repeat::Track, Repeat::Context),
+            (Repeat::Context, Repeat::Context),
+            (Repeat::Off, Repeat::Off),
+        ] {
+            now.repeat = before;
+            now.skip();
+            assert_eq!(now.repeat, after);
+        }
+    }
 
     #[test]
     fn stopping_rewinds_to_the_start() {
