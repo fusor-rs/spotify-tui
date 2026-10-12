@@ -40,10 +40,12 @@ impl Jukebox {
             // The chunk in flight was dropped with the old generation: load it again.
             listing.rewind();
         }
+        let resume = interrupted || listing.can_load_more();
         self.listing.set(listing);
         // The saved height may be stale; the list keeps its size, so no resize follows.
+        // A taller window may now reach past the loaded rows.
         self.window.update(|current| current.restore(window));
-        if interrupted {
+        if resume {
             self.load_more();
         }
         true
