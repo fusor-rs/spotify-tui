@@ -52,7 +52,7 @@ input:focus { border-color: #1DB954; border-style: solid; }
   flex-grow: 1;
   flex-shrink: 1;
   min-height: 0;
-  overflow: hidden;
+  overflow: auto;
   border-style: rounded;
   border-color: #2A2A2A;
   padding: 0 1ch;
