@@ -85,6 +85,11 @@ async fn announce(player: &InterfaceRef<Player>, change: Change) -> zbus::Result
         }
         Change::Control => controls_changed(&player, emitter).await,
         Change::Status => player.playback_status_changed(emitter).await,
+        // A track that starts part way through, or a stop, moves the position too.
+        Change::StatusAt(position) => {
+            player.playback_status_changed(emitter).await?;
+            Player::seeked(emitter, position).await
+        }
         Change::Volume => player.volume_changed(emitter).await,
         Change::Shuffle => player.shuffle_changed(emitter).await,
         Change::Loop => player.loop_status_changed(emitter).await,
@@ -224,6 +229,7 @@ enum Change {
     Nothing,
     Track,
     Status,
+    StatusAt(i64),
     Volume,
     Shuffle,
     Loop,
@@ -300,9 +306,14 @@ impl Now {
     }
 
     fn play(&mut self, status: Status, position_ms: u32) -> Change {
+        let expected = self.elapsed();
         self.status = status;
         self.report(position_ms);
-        Change::Status
+        if expected.abs_diff(self.position) > JUMP {
+            Change::StatusAt(micros(self.position))
+        } else {
+            Change::Status
+        }
     }
 
     fn report(&mut self, position_ms: u32) {
@@ -561,6 +572,9 @@ impl Player {
 }
 
 const MICROS_PER_MILLI: i64 = 1000;
+/// How far a reported position may stray from the expected one before clients
+/// are told it jumped; events reach us a few milliseconds late.
+const JUMP: Duration = Duration::from_secs(1);
 
 fn micros(duration: Duration) -> i64 {
     // Saturates only past 292 thousand years.
@@ -657,5 +671,20 @@ mod tests {
         };
         assert_eq!(now.apply(disconnected), Change::Control);
         assert!(!now.controllable());
+    }
+
+    #[test]
+    fn tracks_starting_part_way_through_announce_the_position() {
+        let mut now = Now::default();
+        let uri = track().uri;
+        now.track = Some(track());
+        let playing = |position_ms| PlayerEvent::Playing {
+            play_request_id: 0,
+            track_id: librespot_core::SpotifyUri::from_uri(&uri)
+                .expect("the test track URI is valid"),
+            position_ms,
+        };
+        assert_eq!(now.apply(playing(90_000)), Change::StatusAt(90_000_000));
+        assert_eq!(now.apply(playing(90_000)), Change::Status);
     }
 }
