@@ -2,6 +2,7 @@ mod jukebox;
 mod spotify;
 
 use jukebox::{Jukebox, Startup};
+use std::process::ExitCode;
 
 const COMMAND: &str = env!("CARGO_BIN_NAME");
 const HELP: &str = "\
@@ -14,7 +15,18 @@ Usage:
 
 Playback needs Spotify Premium. Press ? in the player for keys.";
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() -> ExitCode {
+    // Returning the error from `main` would print its `Debug` form instead of its message.
+    match dispatch() {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => {
+            eprintln!("{COMMAND}: {error}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+fn dispatch() -> Result<(), Box<dyn std::error::Error>> {
     let arguments: Vec<String> = std::env::args().skip(1).collect();
     match arguments
         .iter()
