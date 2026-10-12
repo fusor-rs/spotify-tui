@@ -15,7 +15,9 @@ use std::sync::Arc;
 
 /// The name this computer shows in every Spotify Connect device list.
 pub(crate) const DEVICE_NAME: &str = "spotify-tui";
-const INITIAL_VOLUME: u16 = u16::MAX / 2;
+/// Full volume: the system mixer sets the loudness. librespot's volume curve is
+/// logarithmic over 60 dB, so half of the range already plays 30 dB quieter.
+pub(crate) const INITIAL_VOLUME: u16 = u16::MAX;
 
 /// A Spotify Connect speaker that plays audio on this computer.
 pub(crate) struct Speaker {

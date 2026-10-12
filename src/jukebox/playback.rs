@@ -45,7 +45,7 @@ impl Default for NowPlaying {
             playing: false,
             position: Duration::ZERO,
             reported: Instant::now(),
-            volume: u16::MAX / 2,
+            volume: crate::spotify::INITIAL_VOLUME,
             shuffle: false,
             repeat: Repeat::Off,
         }
@@ -308,9 +308,11 @@ impl Jukebox {
     }
 
     pub(super) fn volume_label(&self) -> String {
+        // Rounded: one step down from full volume is 95%, not 94%.
+        let full = u32::from(u16::MAX);
         let percent = self
             .now
-            .with(|now| u32::from(now.volume) * PERCENT / u32::from(u16::MAX));
+            .with(|now| (u32::from(now.volume) * PERCENT + full / 2) / full);
         let filled = percent.div_ceil(PERCENT / VOLUME_CELLS);
         format!(
             "{}{} {percent:>3}%",
