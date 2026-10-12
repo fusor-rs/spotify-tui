@@ -78,17 +78,26 @@ async fn announce(player: &InterfaceRef<Player>, change: Change) -> zbus::Result
     let player = player.get().await;
     match change {
         Change::Nothing => Ok(()),
-        // CanSeek depends on having a track; clients cache it, so it is announced too.
+        // The Can* properties depend on having a track; clients cache them.
         Change::Track => {
             player.metadata_changed(emitter).await?;
-            player.can_seek_changed(emitter).await
+            controls_changed(&player, emitter).await
         }
+        Change::Control => controls_changed(&player, emitter).await,
         Change::Status => player.playback_status_changed(emitter).await,
         Change::Volume => player.volume_changed(emitter).await,
         Change::Shuffle => player.shuffle_changed(emitter).await,
         Change::Loop => player.loop_status_changed(emitter).await,
         Change::Position(position) => Player::seeked(emitter, position).await,
     }
+}
+
+async fn controls_changed(player: &Player, emitter: &SignalEmitter<'_>) -> zbus::Result<()> {
+    player.can_play_changed(emitter).await?;
+    player.can_pause_changed(emitter).await?;
+    player.can_go_next_changed(emitter).await?;
+    player.can_go_previous_changed(emitter).await?;
+    player.can_seek_changed(emitter).await
 }
 
 /// The track details MPRIS clients show.
@@ -184,6 +193,8 @@ impl Track {
 /// What the player reports, kept for clients that ask.
 #[derive(Debug)]
 struct Now {
+    /// Whether this is Spotify's active device; librespot ignores commands otherwise.
+    active: bool,
     track: Option<Track>,
     status: Status,
     position: Duration,
@@ -216,12 +227,14 @@ enum Change {
     Volume,
     Shuffle,
     Loop,
+    Control,
     Position(i64),
 }
 
 impl Default for Now {
     fn default() -> Self {
         Self {
+            active: false,
             track: None,
             status: Status::Stopped,
             position: Duration::ZERO,
@@ -269,8 +282,21 @@ impl Now {
                 };
                 Change::Loop
             }
+            PlayerEvent::SessionConnected { .. } => {
+                self.active = true;
+                Change::Control
+            }
+            PlayerEvent::SessionDisconnected { .. } => {
+                self.active = false;
+                Change::Control
+            }
             _ => Change::Nothing,
         }
+    }
+
+    /// Whether librespot acts on playback commands rather than dropping them.
+    fn controllable(&self) -> bool {
+        self.active && self.track.is_some()
     }
 
     fn play(&mut self, status: Status, position_ms: u32) -> Change {
@@ -491,27 +517,27 @@ impl Player {
 
     #[zbus(property)]
     fn can_go_next(&self) -> bool {
-        true
+        self.now.controllable()
     }
 
     #[zbus(property)]
     fn can_go_previous(&self) -> bool {
-        true
+        self.now.controllable()
     }
 
     #[zbus(property)]
     fn can_play(&self) -> bool {
-        true
+        self.now.controllable()
     }
 
     #[zbus(property)]
     fn can_pause(&self) -> bool {
-        true
+        self.now.controllable()
     }
 
     #[zbus(property)]
     fn can_seek(&self) -> bool {
-        self.now.track.is_some()
+        self.now.controllable()
     }
 
     #[zbus(property(emits_changed_signal = "const"))]
@@ -606,5 +632,24 @@ mod tests {
             Change::Volume
         );
         assert_eq!(now.volume, 7);
+    }
+
+    #[test]
+    fn controls_need_the_active_device_and_a_track() {
+        let mut now = Now::default();
+        let connected = PlayerEvent::SessionConnected {
+            connection_id: String::new(),
+            user_name: String::new(),
+        };
+        assert_eq!(now.apply(connected), Change::Control);
+        assert!(!now.controllable());
+        now.track = Some(track());
+        assert!(now.controllable());
+        let disconnected = PlayerEvent::SessionDisconnected {
+            connection_id: String::new(),
+            user_name: String::new(),
+        };
+        assert_eq!(now.apply(disconnected), Change::Control);
+        assert!(!now.controllable());
     }
 }
