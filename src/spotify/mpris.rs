@@ -411,7 +411,14 @@ impl Player {
     }
 
     fn seek(&self, offset: i64) -> fdo::Result<()> {
+        let Some(track) = &self.now.track else {
+            return Ok(());
+        };
         let target = micros(self.now.elapsed()).saturating_add(offset).max(0);
+        // MPRIS asks that seeking past the end act like Next; librespot would ignore it.
+        if target > micros(track.length) {
+            return failed(self.spirc.next());
+        }
         self.go_to(target)
     }
 
