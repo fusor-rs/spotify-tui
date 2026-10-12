@@ -67,6 +67,13 @@ impl Window {
         self.reveal();
     }
 
+    /// Returns to a saved position, keeping the height the list has now.
+    pub(crate) fn restore(&mut self, saved: Self) {
+        let rows = self.rows;
+        *self = saved;
+        self.resize(rows);
+    }
+
     pub(crate) fn select(&mut self, index: usize, length: usize) {
         self.selected = index.min(length.saturating_sub(1));
         self.reveal();
@@ -128,6 +135,15 @@ impl Source {
 }
 
 impl Listing {
+    /// Idle, or stopped by a failed chunk; a list that never resolved has nothing to retry.
+    pub(crate) fn can_load_more(&self) -> bool {
+        match self.loading {
+            Loading::Idle => true,
+            Loading::Busy => false,
+            Loading::Failed(_) => !self.uris.is_empty(),
+        }
+    }
+
     pub(crate) fn new(source: Source) -> Self {
         Self {
             source,
@@ -220,5 +236,16 @@ mod tests {
         assert_eq!((window.selected, window.visible(2)), (1, 0..2));
         window.select(9, 0);
         assert_eq!((window.selected, window.visible(0)), (0, 0..0));
+    }
+
+    #[test]
+    fn restored_windows_keep_the_current_height() {
+        let mut saved = Window::default();
+        saved.resize(39);
+        saved.select(24, 100);
+        let mut window = Window::default();
+        window.resize(19);
+        window.restore(saved);
+        assert_eq!((window.selected, window.visible(100)), (24, 6..25));
     }
 }

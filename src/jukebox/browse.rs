@@ -31,13 +31,18 @@ impl Jukebox {
     }
 
     pub(super) fn back(self: &Rc<Self>) -> bool {
-        let Some((listing, window)) = self.history.borrow_mut().pop() else {
+        let Some((mut listing, window)) = self.history.borrow_mut().pop() else {
             return false;
         };
         self.generation.set(self.generation.get() + 1);
         let interrupted = listing.loading == Loading::Busy;
+        if interrupted {
+            // The chunk in flight was dropped with the old generation: load it again.
+            listing.requested = listing.tracks.len();
+        }
         self.listing.set(listing);
-        self.window.set(window);
+        // The saved height may be stale; the list keeps its size, so no resize follows.
+        self.window.update(|current| current.restore(window));
         if interrupted {
             self.load_more();
         }
@@ -108,9 +113,11 @@ impl Jukebox {
             }
             match result {
                 Ok(value) => apply(&jukebox, value),
-                Err(error) => jukebox
-                    .listing
-                    .update(|listing| listing.loading = Loading::Failed(error.to_string())),
+                // The failed chunk loads again on the next scroll or resize.
+                Err(error) => jukebox.listing.update(|listing| {
+                    listing.requested = listing.tracks.len();
+                    listing.loading = Loading::Failed(error.to_string());
+                }),
             }
         });
         if let Err(error) = started {
@@ -194,10 +201,7 @@ impl Jukebox {
     fn move_selection(self: &Rc<Self>, key: Key) {
         let length = self.listing.with_untracked(|listing| listing.tracks.len());
         self.window.update(|window| window.navigate(key, length));
-        if self
-            .listing
-            .with_untracked(|listing| listing.loading == Loading::Idle)
-        {
+        if self.listing.with_untracked(Listing::can_load_more) {
             self.load_more();
         }
     }
@@ -206,10 +210,7 @@ impl Jukebox {
         if let EventPayload::Resize { height, .. } = event.payload {
             let rows = usize::from(height).saturating_sub(HEADER_ROWS);
             self.window.update(|window| window.resize(rows));
-            if self
-                .listing
-                .with_untracked(|listing| listing.loading == Loading::Idle)
-            {
+            if self.listing.with_untracked(Listing::can_load_more) {
                 self.load_more();
             }
         }
