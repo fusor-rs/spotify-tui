@@ -142,9 +142,15 @@ impl Token {
         previous_refresh: Option<&str>,
     ) -> Result<Self, Error> {
         let response = http.post(TOKEN_URL).form(form).send().await?;
-        if !response.status().is_success() {
+        // Only a rejected grant means the login is gone; a busy or failing server
+        // (429, 5xx) is a network problem, and retrying later is enough.
+        if matches!(
+            response.status(),
+            reqwest::StatusCode::BAD_REQUEST | reqwest::StatusCode::UNAUTHORIZED
+        ) {
             return Err(Error::Unauthorized);
         }
+        let response = response.error_for_status()?;
         let token: TokenResponse = response.json().await?;
         let refresh = token
             .refresh_token
