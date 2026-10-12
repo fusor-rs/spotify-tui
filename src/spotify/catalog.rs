@@ -118,16 +118,22 @@ impl Catalog {
                 ..BatchedEntityRequest::default()
             };
             let response = session.spclient().get_extended_metadata(request).await?;
-            let mut found = response
+            // A track Spotify describes incompletely is left out like an unavailable one,
+            // instead of failing the whole batch and stopping the listing there.
+            let mut found: HashMap<_, _> = response
                 .extended_metadata
                 .iter()
                 .flat_map(|array| &array.extension_data)
                 .filter(|data| data.header.status_code == STATUS_OK)
-                .map(|data| {
-                    let message = metadata::Track::parse_from_bytes(&data.extension_data.value)?;
-                    Ok((data.entity_uri.clone(), track(&data.entity_uri, &message)?))
+                .filter_map(|data| {
+                    let message =
+                        metadata::Track::parse_from_bytes(&data.extension_data.value).ok()?;
+                    Some((
+                        data.entity_uri.clone(),
+                        track(&data.entity_uri, &message).ok()?,
+                    ))
                 })
-                .collect::<Result<HashMap<_, _>, Error>>()?;
+                .collect();
             Ok(uris.iter().filter_map(|uri| found.remove(uri)).collect())
         })
         .await
