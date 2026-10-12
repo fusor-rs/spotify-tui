@@ -1,15 +1,19 @@
 use super::{Jukebox, Screen, listing::Source};
-use crate::spotify::{self, Authorization, Speaker, Token};
+use crate::spotify::{self, Authorization, INITIAL_VOLUME, Speaker, Token};
 use hypercmd::{Error, Event};
 use std::{
     process::{Command, Stdio},
     rc::Rc,
+    time::Duration,
 };
+use tokio::sync::mpsc;
 
 #[cfg(target_os = "macos")]
 const BROWSER_OPENER: &str = "open";
 #[cfg(not(target_os = "macos"))]
 const BROWSER_OPENER: &str = "xdg-open";
+/// How long to wait before trying again to reach Spotify after a lost session.
+const RECONNECT_DELAY: Duration = Duration::from_secs(5);
 
 impl Jukebox {
     /// Captures the root on first presentation and resumes a saved login.
@@ -61,19 +65,79 @@ impl Jukebox {
 
     async fn connect(self: Rc<Self>, token: Token) -> Result<(), spotify::Error> {
         self.screen.set(Screen::Connecting);
-        let connection = Speaker::connect(token.access).await?;
-        self.speaker.replace(Some(connection.speaker));
-        self.catalog.replace(Some(connection.catalog));
+        let (events, player_events) = mpsc::unbounded_channel();
+        let connection = Speaker::connect(token.access, events.clone(), INITIAL_VOLUME).await?;
+        let lost = self.install(connection);
         self.screen.set(Screen::Library);
-        for started in [self.follow_player(connection.events), self.start_clock()] {
+        for started in [self.follow_player(player_events), self.start_clock()] {
             if let Err(error) = started {
                 self.warn(format!("Playback updates stopped: {error}"));
             }
+        }
+        let watch = self.clone().stay_connected(lost, events);
+        if let Err(error) = self.services.spawn(&self.owner, watch) {
+            self.warn(format!("Cannot watch the connection to Spotify: {error}"));
         }
         self.load_playlists();
         self.open(Source::Liked);
         self.focus("tracks");
         Ok(())
+    }
+
+    fn install(&self, connection: spotify::Connection) -> spotify::Lost {
+        self.speaker.replace(Some(connection.speaker));
+        self.catalog.replace(Some(connection.catalog));
+        connection.lost
+    }
+
+    /// librespot drops its session after a sleep or a network change and never
+    /// reconnects, so a new speaker and catalog replace the dead ones.
+    async fn stay_connected(self: Rc<Self>, mut lost: spotify::Lost, events: spotify::Events) {
+        // A speaker dropped on purpose ends the watch without a loss.
+        while lost.await.is_ok() {
+            // Stopping the dead speaker releases its audio output and MPRIS name.
+            let volume = self
+                .speaker
+                .replace(None)
+                .map_or(INITIAL_VOLUME, |speaker| speaker.volume());
+            self.inform("Lost the connection to Spotify; reconnecting…");
+            let Some(next) = self.reconnect_until_done(&events, volume).await else {
+                return;
+            };
+            lost = next;
+            self.inform("Reconnected to Spotify");
+        }
+    }
+
+    /// Retries until a new speaker is up, or until retrying cannot help.
+    async fn reconnect_until_done(
+        &self,
+        events: &spotify::Events,
+        volume: u16,
+    ) -> Option<spotify::Lost> {
+        loop {
+            match self.reconnect(events, volume).await {
+                Ok(lost) => return Some(lost),
+                Err(error @ spotify::Error::Unauthorized) => {
+                    self.warn(error.to_string());
+                    return None;
+                }
+                Err(error) => self.warn(format!("Cannot reconnect to Spotify yet: {error}")),
+            }
+            self.services.sleep(RECONNECT_DELAY).ok()?.await.ok()?;
+        }
+    }
+
+    async fn reconnect(
+        &self,
+        events: &spotify::Events,
+        volume: u16,
+    ) -> Result<spotify::Lost, spotify::Error> {
+        let refresh_token = spotify::stored_refresh_token()?.ok_or(spotify::Error::Unauthorized)?;
+        let token = Token::refresh(&self.http, &refresh_token).await?;
+        token.store()?;
+        let connection = Speaker::connect(token.access, events.clone(), volume).await?;
+        Ok(self.install(connection))
     }
 
     pub(super) fn login_url(&self) -> String {
