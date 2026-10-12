@@ -38,7 +38,7 @@ impl Jukebox {
         let interrupted = listing.loading == Loading::Busy;
         if interrupted {
             // The chunk in flight was dropped with the old generation: load it again.
-            listing.requested = listing.tracks.len();
+            listing.rewind();
         }
         self.listing.set(listing);
         // The saved height may be stale; the list keeps its size, so no resize follows.
@@ -87,7 +87,7 @@ impl Jukebox {
         self.load(generation, task, |jukebox, tracks| {
             jukebox
                 .listing
-                .update(|listing| listing.tracks.extend(tracks.into_iter().map(Rc::new)));
+                .update(|listing| listing.add_chunk(tracks.into_iter().map(Rc::new)));
             jukebox.load_more();
         });
     }
@@ -115,7 +115,7 @@ impl Jukebox {
                 Ok(value) => apply(&jukebox, value),
                 // The failed chunk loads again on the next scroll or resize.
                 Err(error) => jukebox.listing.update(|listing| {
-                    listing.requested = listing.tracks.len();
+                    listing.rewind();
                     listing.loading = Loading::Failed(error.to_string());
                 }),
             }

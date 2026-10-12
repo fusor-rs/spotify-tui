@@ -26,7 +26,10 @@ pub(crate) struct Listing {
     pub(crate) source: Source,
     pub(crate) uris: Rc<[String]>,
     pub(crate) tracks: Vec<Rc<Track>>,
+    /// URIs sent for details, including the chunk in flight.
     pub(crate) requested: usize,
+    /// URIs whose details arrived; unavailable tracks among them have no entry in `tracks`.
+    pub(crate) loaded: usize,
     pub(crate) loading: Loading,
 }
 
@@ -150,8 +153,20 @@ impl Listing {
             uris: Rc::from([]),
             tracks: Vec::new(),
             requested: 0,
+            loaded: 0,
             loading: Loading::Busy,
         }
+    }
+
+    /// Adds the details of the chunk in flight.
+    pub(crate) fn add_chunk(&mut self, tracks: impl IntoIterator<Item = Rc<Track>>) {
+        self.tracks.extend(tracks);
+        self.loaded = self.requested;
+    }
+
+    /// Forgets the chunk in flight, so that it is requested again.
+    pub(crate) fn rewind(&mut self) {
+        self.requested = self.loaded;
     }
 
     pub(crate) fn summary(&self) -> String {
@@ -202,7 +217,40 @@ pub(crate) fn duration(milliseconds: u64) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::{Key, Window, duration};
+    use super::{Key, Listing, Source, Window, duration};
+    use crate::spotify::{Album, Track};
+    use std::rc::Rc;
+
+    fn track(uri: &str) -> Rc<Track> {
+        Rc::new(Track {
+            uri: uri.into(),
+            name: uri.into(),
+            artists: Vec::new(),
+            album: Album {
+                uri: "spotify:album:a".into(),
+                name: "Album".into(),
+            },
+            duration_ms: 0,
+        })
+    }
+
+    fn uris(count: usize) -> Rc<[String]> {
+        (0..count)
+            .map(|index| format!("spotify:track:{index}"))
+            .collect()
+    }
+
+    #[test]
+    fn rewound_chunks_do_not_repeat_loaded_tracks() {
+        let mut listing = Listing::new(Source::Liked);
+        listing.uris = uris(4);
+        listing.requested = 2;
+        // The second URI is unavailable and has no details.
+        listing.add_chunk([track("spotify:track:0")]);
+        listing.requested = 4;
+        listing.rewind();
+        assert_eq!(listing.requested, 2);
+    }
 
     #[test]
     fn durations_use_minutes_and_hours() {
