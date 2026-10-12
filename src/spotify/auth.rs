@@ -4,9 +4,12 @@ use rand::{Rng, distr::Alphanumeric};
 use reqwest::Url;
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
+use std::{io::ErrorKind, time::Duration};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{TcpListener, TcpStream},
+    sync::mpsc,
+    task::JoinHandle,
 };
 
 /// librespot's client ID: Spotify only lets privileged client IDs stream audio.
@@ -19,6 +22,10 @@ const SCOPES: &str = "streaming user-read-private playlist-read-private user-lib
 const VERIFIER_LENGTH: usize = 64;
 const STATE_LENGTH: usize = 16;
 const MAX_REQUEST_BYTES: usize = 8192;
+/// How long a browser connection may take to send its request.
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
+/// How long the login page may stay open before the login gives up.
+const LOGIN_TIMEOUT: Duration = Duration::from_secs(10 * 60);
 const KEYRING_SERVICE: &str = "spotify-tui";
 const KEYRING_ACCOUNT: &str = "refresh-token";
 const CALLBACK_PAGE: &str = include_str!("../../assets/callback.html");
@@ -70,15 +77,12 @@ impl Authorization {
         let listener = TcpListener::bind(CALLBACK_ADDRESS).await.map_err(|error| {
             Error::Callback(format!("cannot listen on {CALLBACK_ADDRESS}: {error}"))
         })?;
-        let code = loop {
-            let (mut stream, _) = listener.accept().await?;
-            let Some(callback) = read_callback(&mut stream).await? else {
-                stream.write_all(NOT_FOUND).await?;
-                continue;
-            };
-            respond(&mut stream).await?;
-            break self.code(&callback)?;
-        };
+        // A closed browser tab never comes back, so the welcome screen needs an end.
+        let code = tokio::time::timeout(LOGIN_TIMEOUT, self.wait_for_code(listener))
+            .await
+            .map_err(|_elapsed| {
+                Error::Callback("the browser did not come back in time; try again".into())
+            })??;
         let redirect = redirect_uri();
         Token::request(
             http,
@@ -98,24 +102,48 @@ impl Authorization {
         })
     }
 
-    fn code(&self, callback: &Url) -> Result<String, Error> {
+    /// Answers browser requests until one carries this session's response.
+    ///
+    /// Each connection is read on its own task: a browser may open idle sockets
+    /// ahead of time or reset them, and neither may hold up or end the login.
+    async fn wait_for_code(&self, listener: TcpListener) -> Result<String, Error> {
+        let (found, mut callbacks) = mpsc::unbounded_channel();
+        let mut accepting = AbortOnDrop(tokio::spawn(accept(listener, found)));
+        while let Some((mut stream, callback)) = callbacks.recv().await {
+            let Some(code) = self.code(&callback)? else {
+                // An older login page, reloaded: this session can still finish.
+                let _ = stream.write_all(STALE).await;
+                continue;
+            };
+            // The code is all the login needs, even if the tab is already gone.
+            let _ = respond(&mut stream).await;
+            return Ok(code);
+        }
+        Err(match (&mut accepting.0).await {
+            Ok(error) => error.into(),
+            Err(error) => error.into(),
+        })
+    }
+
+    /// Returns the code, or `None` for a response meant for another session.
+    fn code(&self, callback: &Url) -> Result<Option<String>, Error> {
         let parameter = |name| {
             callback
                 .query_pairs()
                 .find(|(key, _)| key == name)
                 .map(|(_, value)| value.into_owned())
         };
+        if parameter("state").as_deref() != Some(self.state.as_str()) {
+            return Ok(None);
+        }
         if let Some(reason) = parameter("error") {
             return Err(Error::Callback(format!(
                 "Spotify declined the login ({reason})"
             )));
         }
-        if parameter("state").as_deref() != Some(self.state.as_str()) {
-            return Err(Error::Callback(
-                "the login response did not match this session".into(),
-            ));
-        }
-        parameter("code").ok_or_else(|| Error::Callback("the login response had no code".into()))
+        parameter("code")
+            .map(Some)
+            .ok_or_else(|| Error::Callback("the login response had no code".into()))
     }
 }
 
@@ -204,6 +232,56 @@ fn random_text(length: usize) -> String {
 const NOT_FOUND: &[u8] =
     b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
 
+const STALE: &[u8] = b"HTTP/1.1 409 Conflict\r\nContent-Type: text/plain\r\n\
+    Content-Length: 50\r\nConnection: close\r\n\r\n\
+    This login page is outdated; use the newest one.\r\n";
+
+/// Aborts a background task once nothing waits for it, freeing what it holds.
+struct AbortOnDrop<T>(JoinHandle<T>);
+
+impl<T> Drop for AbortOnDrop<T> {
+    fn drop(&mut self) {
+        self.0.abort();
+    }
+}
+
+/// Hands every callback request to `found`; returns only when the listener breaks.
+async fn accept(
+    listener: TcpListener,
+    found: mpsc::UnboundedSender<(TcpStream, Url)>,
+) -> std::io::Error {
+    loop {
+        match listener.accept().await {
+            Ok((stream, _)) => {
+                tokio::spawn(serve(stream, found.clone()));
+            }
+            // Linux reports a connection that failed before being accepted here.
+            Err(error)
+                if matches!(
+                    error.kind(),
+                    ErrorKind::ConnectionAborted
+                        | ErrorKind::ConnectionReset
+                        | ErrorKind::Interrupted
+                ) => {}
+            Err(error) => return error,
+        }
+    }
+}
+
+/// Reads one browser request, passing it on only when it is the callback.
+async fn serve(mut stream: TcpStream, found: mpsc::UnboundedSender<(TcpStream, Url)>) {
+    match tokio::time::timeout(REQUEST_TIMEOUT, read_callback(&mut stream)).await {
+        Ok(Ok(Some(callback))) => {
+            let _ = found.send((stream, callback));
+        }
+        Ok(Ok(None)) => {
+            let _ = stream.write_all(NOT_FOUND).await;
+        }
+        // A socket that stays silent or breaks is not the login.
+        Ok(Err(_)) | Err(_) => {}
+    }
+}
+
 /// Returns the callback URL, or `None` for unrelated requests such as a favicon.
 async fn read_callback(stream: &mut TcpStream) -> Result<Option<Url>, Error> {
     let mut request = Vec::new();
@@ -237,4 +315,59 @@ async fn respond(stream: &mut TcpStream) -> Result<(), Error> {
     );
     stream.write_all(response.as_bytes()).await?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Authorization;
+    use std::net::SocketAddr;
+    use tokio::{
+        io::{AsyncReadExt, AsyncWriteExt},
+        net::{TcpListener, TcpStream},
+    };
+
+    async fn get(address: SocketAddr, target: &str) -> String {
+        let mut stream = TcpStream::connect(address).await.expect("connects");
+        let request = format!("GET {target} HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n");
+        stream.write_all(request.as_bytes()).await.expect("sends");
+        let mut response = String::new();
+        stream
+            .read_to_string(&mut response)
+            .await
+            .expect("reads the answer");
+        response
+    }
+
+    #[test]
+    fn stray_connections_do_not_end_the_login() {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("a test runtime");
+        runtime.block_on(async {
+            let authorization = Authorization::new();
+            let state = authorization.state.clone();
+            let listener = TcpListener::bind("127.0.0.1:0").await.expect("binds");
+            let address = listener.local_addr().expect("has an address");
+            let waiting =
+                tokio::spawn(async move { authorization.wait_for_code(listener).await.ok() });
+            // A preconnected socket that never speaks, and one that closes at once.
+            let _idle = TcpStream::connect(address).await.expect("connects");
+            drop(TcpStream::connect(address).await.expect("connects"));
+            assert!(
+                get(address, "/favicon.ico")
+                    .await
+                    .starts_with("HTTP/1.1 404")
+            );
+            let stale = get(address, "/login?code=old&state=other").await;
+            assert!(stale.starts_with("HTTP/1.1 409"));
+            assert!(stale.ends_with("newest one.\r\n"));
+            let done = get(address, &format!("/login?code=fresh&state={state}")).await;
+            assert!(done.starts_with("HTTP/1.1 200"));
+            assert_eq!(
+                waiting.await.expect("the login task finishes").as_deref(),
+                Some("fresh")
+            );
+        });
+    }
 }
