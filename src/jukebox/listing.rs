@@ -182,12 +182,22 @@ impl Listing {
         self.requested = self.loaded;
     }
 
+    /// The tracks loaded plus those not loaded yet, leaving out the ones found unavailable.
+    pub(crate) fn count(&self) -> usize {
+        self.tracks.len() + (self.uris.len() - self.loaded)
+    }
+
+    /// Whether the source has nothing to play, once every track is known.
+    pub(crate) fn is_empty(&self) -> bool {
+        self.count() == 0 && self.loading == Loading::Idle
+    }
+
     pub(crate) fn summary(&self) -> String {
         match &self.loading {
             Loading::Busy if self.tracks.is_empty() => "Loading…".into(),
             Loading::Failed(error) => error.clone(),
-            _ if self.uris.len() == 1 => "1 song".into(),
-            _ => format!("{} songs", self.uris.len()),
+            _ if self.count() == 1 => "1 song".into(),
+            _ => format!("{} songs", self.count()),
         }
     }
 
@@ -267,6 +277,28 @@ mod tests {
         listing.add_chunk([]);
         assert_eq!(listing.next_chunk(3, 2), None);
         assert_eq!(listing.loading, super::Loading::Idle);
+    }
+
+    #[test]
+    fn counts_leave_out_unavailable_tracks() {
+        let mut listing = Listing::new(Source::Liked);
+        listing.uris = uris(3);
+        assert_eq!(listing.next_chunk(1, 2).map(|chunk| chunk.len()), Some(2));
+        assert_eq!(listing.count(), 3);
+        listing.add_chunk([track("spotify:track:1")]);
+        assert_eq!((listing.count(), listing.summary()), (2, "2 songs".into()));
+        assert_eq!(listing.next_chunk(1, 2), None);
+        assert!(!listing.is_empty());
+    }
+
+    #[test]
+    fn unavailable_tracks_leave_an_empty_listing() {
+        let mut listing = Listing::new(Source::Liked);
+        listing.uris = uris(2);
+        assert!(listing.next_chunk(1, 2).is_some());
+        listing.add_chunk([]);
+        assert_eq!(listing.next_chunk(1, 2), None);
+        assert!(listing.is_empty());
     }
 
     #[test]

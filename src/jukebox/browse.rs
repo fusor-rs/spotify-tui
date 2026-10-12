@@ -311,10 +311,8 @@ impl Jukebox {
     }
 
     pub(super) fn listing_empty(&self) -> Option<&'static str> {
-        self.listing.with(|listing| {
-            (listing.uris.is_empty() && listing.loading == Loading::Idle)
-                .then(|| listing.source.empty_message())
-        })
+        self.listing
+            .with(|listing| listing.is_empty().then(|| listing.source.empty_message()))
     }
 
     pub(super) fn is_current(&self, source: &Source) -> bool {
@@ -332,7 +330,7 @@ impl Jukebox {
             } else {
                 " · Esc back"
             };
-            format!("{} of {}{back}", window.selected + 1, listing.uris.len())
+            format!("{} of {}{back}", window.selected + 1, listing.count())
         })
     }
 }
