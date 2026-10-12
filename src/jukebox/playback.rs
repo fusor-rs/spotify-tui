@@ -27,6 +27,8 @@ pub(super) struct NowPlaying {
     uri: Option<String>,
     track: Option<Rc<Track>>,
     playing: bool,
+    /// librespot ignores Resume once stopped, after the end of a list or `p` on its first track.
+    stopped: bool,
     position: Duration,
     reported: Instant,
     volume: u16,
@@ -46,6 +48,7 @@ impl Default for NowPlaying {
             uri: None,
             track: None,
             playing: false,
+            stopped: false,
             position: Duration::ZERO,
             reported: Instant::now(),
             volume: crate::spotify::INITIAL_VOLUME,
@@ -60,6 +63,7 @@ impl NowPlaying {
         self.position = Duration::from_millis(position_ms.into());
         self.reported = Instant::now();
         self.playing = playing;
+        self.stopped = false;
     }
 
     /// Adds the details of `uri`, unless another track started meanwhile.
@@ -128,7 +132,10 @@ impl Jukebox {
             | PlayerEvent::PositionChanged { position_ms, .. } => {
                 self.now.update(|now| now.report(position_ms, now.playing));
             }
-            PlayerEvent::Stopped { .. } => self.now.update(|now| now.playing = false),
+            PlayerEvent::Stopped { .. } => self.now.update(|now| {
+                now.playing = false;
+                now.stopped = true;
+            }),
             PlayerEvent::VolumeChanged { volume } => self.now.update(|now| now.volume = volume),
             PlayerEvent::ShuffleChanged { shuffle } => self.now.update(|now| now.shuffle = shuffle),
             PlayerEvent::RepeatChanged { context, track } => self.now.update(|now| {
@@ -149,6 +156,7 @@ impl Jukebox {
         self.now.update(|now| {
             now.uri = Some(uri.clone());
             now.track = None;
+            now.stopped = false;
         });
         self.change_cover(&uri, cover);
         let Some(catalog) = self.catalog() else {
@@ -218,7 +226,7 @@ impl Jukebox {
     pub(super) fn toggle_play(&self) -> Result<(), Error> {
         let (started, playing) = self
             .now
-            .with_untracked(|now| (now.uri.is_some(), now.playing));
+            .with_untracked(|now| (now.uri.is_some() && !now.stopped, now.playing));
         if !started {
             return self.play_selected();
         }
@@ -231,7 +239,14 @@ impl Jukebox {
     }
 
     pub(super) fn seek_forward(&self) {
-        let target = self.now.with_untracked(|now| now.elapsed() + SEEK_STEP);
+        // librespot ignores a seek past the end, so the last seconds would not skip.
+        let target = self.now.with_untracked(|now| {
+            let target = now.elapsed() + SEEK_STEP;
+            match &now.track {
+                Some(track) => target.min(Duration::from_millis(track.duration_ms)),
+                None => target,
+            }
+        });
         self.seek(target);
     }
 
