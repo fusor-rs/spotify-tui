@@ -25,6 +25,8 @@ const EQUALIZER_SPREAD: usize = 5;
 #[derive(Clone, PartialEq)]
 pub(super) struct NowPlaying {
     uri: Option<String>,
+    /// The track librespot is loading, which only becomes `uri` once it starts.
+    loading: Option<String>,
     track: Option<Rc<Track>>,
     playing: bool,
     /// librespot ignores Resume once stopped, after the end of a list or `p` on its first track.
@@ -46,6 +48,7 @@ impl Default for NowPlaying {
     fn default() -> Self {
         Self {
             uri: None,
+            loading: None,
             track: None,
             playing: false,
             stopped: false,
@@ -78,6 +81,16 @@ impl NowPlaying {
     fn skip(&mut self) {
         if self.repeat == Repeat::Track {
             self.repeat = Repeat::Context;
+        }
+    }
+
+    /// librespot also reports the next track when preloading it fails, while the
+    /// current one plays on; it skips that one when it gets there.
+    fn unavailable(&self, uri: Option<&str>) -> &'static str {
+        if uri.is_some() && uri == self.loading.as_deref() {
+            "Spotify can't play this track here; skipping it."
+        } else {
+            "Spotify can't play the next track here; it will be skipped."
         }
     }
 
@@ -157,8 +170,15 @@ impl Jukebox {
                     (false, false) => Repeat::Off,
                 };
             }),
-            PlayerEvent::Unavailable { .. } => {
-                self.warn("Spotify can't play this track here; skipping it.".into());
+            PlayerEvent::Loading { track_id, .. } => {
+                self.now.update(|now| now.loading = track_id.to_uri().ok());
+            }
+            PlayerEvent::Unavailable { track_id, .. } => {
+                let uri = track_id.to_uri().ok();
+                let notice = self
+                    .now
+                    .with_untracked(|now| now.unavailable(uri.as_deref()));
+                self.warn(notice.into());
             }
             _ => {}
         }
@@ -167,6 +187,7 @@ impl Jukebox {
     fn change_track(self: &Rc<Self>, uri: String, cover: Option<String>) {
         self.now.update(|now| {
             now.uri = Some(uri.clone());
+            now.loading = None;
             now.track = None;
             now.stopped = false;
         });
@@ -459,6 +480,25 @@ mod tests {
             now.skip();
             assert_eq!(now.repeat, after);
         }
+    }
+
+    #[test]
+    fn only_a_loading_track_is_skipped_now() {
+        let mut now = NowPlaying {
+            uri: Some("spotify:track:playing".into()),
+            loading: Some("spotify:track:loading".into()),
+            ..NowPlaying::default()
+        };
+        assert!(
+            now.unavailable(Some("spotify:track:loading"))
+                .contains("this track")
+        );
+        assert!(
+            now.unavailable(Some("spotify:track:next"))
+                .contains("next track")
+        );
+        now.loading = None;
+        assert!(now.unavailable(None).contains("next track"));
     }
 
     #[test]
