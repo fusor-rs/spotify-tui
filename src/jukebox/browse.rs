@@ -69,16 +69,9 @@ impl Jukebox {
             return;
         };
         let end = self.window.with_untracked(|window| window.end()) + PREFETCH_ROWS;
-        let chunk = self.listing.update(|listing| {
-            if listing.requested >= end.min(listing.uris.len()) {
-                listing.loading = Loading::Idle;
-                return None;
-            }
-            let start = listing.requested;
-            listing.requested = (start + CHUNK).min(listing.uris.len());
-            listing.loading = Loading::Busy;
-            Some(listing.uris[start..listing.requested].to_vec())
-        });
+        let chunk = self
+            .listing
+            .update(|listing| listing.next_chunk(end, CHUNK));
         let Some(chunk) = chunk else {
             return;
         };

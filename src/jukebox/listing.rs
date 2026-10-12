@@ -158,6 +158,19 @@ impl Listing {
         }
     }
 
+    /// Claims the next `size` URIs to load, unless `rows` tracks are loaded or none are left.
+    pub(crate) fn next_chunk(&mut self, rows: usize, size: usize) -> Option<Vec<String>> {
+        // Count loaded tracks, not requested URIs: unavailable tracks fill no row.
+        if self.tracks.len() >= rows || self.requested >= self.uris.len() {
+            self.loading = Loading::Idle;
+            return None;
+        }
+        let start = self.requested;
+        self.requested = (start + size).min(self.uris.len());
+        self.loading = Loading::Busy;
+        self.uris.get(start..self.requested).map(<[String]>::to_vec)
+    }
+
     /// Adds the details of the chunk in flight.
     pub(crate) fn add_chunk(&mut self, tracks: impl IntoIterator<Item = Rc<Track>>) {
         self.tracks.extend(tracks);
@@ -238,6 +251,22 @@ mod tests {
         (0..count)
             .map(|index| format!("spotify:track:{index}"))
             .collect()
+    }
+
+    #[test]
+    fn short_chunks_keep_loading_until_the_rows_fill() {
+        let mut listing = Listing::new(Source::Liked);
+        listing.uris = uris(5);
+        assert_eq!(listing.next_chunk(2, 2).map(|chunk| chunk.len()), Some(2));
+        // Neither track of the first chunk is available.
+        listing.add_chunk([]);
+        assert_eq!(listing.next_chunk(2, 2).map(|chunk| chunk.len()), Some(2));
+        listing.add_chunk([track("spotify:track:2"), track("spotify:track:3")]);
+        assert_eq!(listing.next_chunk(2, 2), None);
+        assert_eq!(listing.next_chunk(3, 2).map(|chunk| chunk.len()), Some(1));
+        listing.add_chunk([]);
+        assert_eq!(listing.next_chunk(3, 2), None);
+        assert_eq!(listing.loading, super::Loading::Idle);
     }
 
     #[test]
