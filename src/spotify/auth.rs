@@ -26,6 +26,8 @@ const MAX_REQUEST_BYTES: usize = 8192;
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(10);
 /// How long the login page may stay open before the login gives up.
 const LOGIN_TIMEOUT: Duration = Duration::from_secs(10 * 60);
+/// How long a token request may take, from connecting to the end of the body.
+const TOKEN_TIMEOUT: Duration = Duration::from_secs(30);
 const KEYRING_SERVICE: &str = "spotify-tui";
 const KEYRING_ACCOUNT: &str = "refresh-token";
 const CALLBACK_PAGE: &str = include_str!("../../assets/callback.html");
@@ -169,7 +171,14 @@ impl Token {
         form: &[(&str, &str)],
         previous_refresh: Option<&str>,
     ) -> Result<Self, Error> {
-        let response = http.post(TOKEN_URL).form(form).send().await?;
+        // The shared client has no timeout, and a stalled request would leave the
+        // welcome screen on "Connecting" with nothing to press.
+        let response = http
+            .post(TOKEN_URL)
+            .form(form)
+            .timeout(TOKEN_TIMEOUT)
+            .send()
+            .await?;
         // Only a rejected grant means the login is gone; a busy or failing server
         // (429, 5xx) is a network problem, and retrying later is enough.
         if matches!(
