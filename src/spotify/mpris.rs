@@ -1,7 +1,7 @@
 //! Publishes the speaker on the session bus as an MPRIS player, so `playerctl`,
 //! media keys and status bars can control it.
 
-use super::DEVICE_NAME;
+use super::{DEVICE_NAME, INITIAL_VOLUME};
 use librespot_connect::Spirc;
 use librespot_metadata::audio::{AudioItem, UniqueFields};
 use librespot_playback::player::{PlayerEvent, PlayerEventChannel};
@@ -245,7 +245,8 @@ impl Default for Now {
             status: Status::Stopped,
             position: Duration::ZERO,
             reported: Instant::now(),
-            volume: u16::MAX / 2,
+            // librespot sets the mixer to this at startup without reporting it.
+            volume: INITIAL_VOLUME,
             shuffle: false,
             repeat: Loop::Off,
         }
