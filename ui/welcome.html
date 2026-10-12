@@ -4,6 +4,10 @@
       <pre class="welcome-logo">{{ LOGO.trim_end_matches('\n') }}</pre>
       <h1 class="welcome-title">spotify-tui</h1>
       <p class="welcome-tagline">Your music, in the terminal.</p>
+      <If condition="{{ matches!(state.jukebox.screen.get(), Screen::Failed(_)) && state.jukebox.can_resume() }}">
+        <button id="retry" class="primary" autofocus
+                on:click="state.jukebox.resume()">Retry  ↵</button>
+      </If>
       <If condition="{{ matches!(state.jukebox.screen.get(), Screen::LoggedOut | Screen::Failed(_)) }}">
         <button id="log-in" class="primary" autofocus
                 on:click="state.jukebox.log_in()">Log in with Spotify  ↵</button>

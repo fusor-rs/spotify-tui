@@ -38,7 +38,7 @@ pub(crate) struct Authorization {
 
 pub(crate) struct Token {
     pub(crate) access: String,
-    refresh: String,
+    pub(crate) refresh: String,
 }
 
 #[derive(Deserialize)]

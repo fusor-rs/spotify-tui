@@ -17,18 +17,42 @@ impl Jukebox {
         if self.root.replace(Some(event.target.clone())).is_some() {
             return Ok(());
         }
+        self.resume()
+    }
+
+    /// Refreshes the saved login; a failure other than a revoked login keeps it
+    /// for `Retry`, so a network outage at startup does not force a new login.
+    pub(super) fn resume(self: &Rc<Self>) -> Result<(), Error> {
         let Some(refresh_token) = self.saved_login.take() else {
             return Ok(());
         };
+        self.screen.set(Screen::Connecting);
         let jukebox = self.clone();
         self.start(async move {
-            let token = Token::refresh(&jukebox.http, &refresh_token).await?;
+            let token = match Token::refresh(&jukebox.http, &refresh_token).await {
+                Ok(token) => token,
+                Err(spotify::Error::Unauthorized) => return Err(spotify::Error::Unauthorized),
+                Err(error) => {
+                    jukebox.saved_login.replace(Some(refresh_token));
+                    return Err(error);
+                }
+            };
+            // Spotify may rotate the refresh token, so a retry must use the new one.
+            jukebox.saved_login.replace(Some(token.refresh.clone()));
             token.store()?;
-            jukebox.connect(token).await
+            jukebox.clone().connect(token).await?;
+            jukebox.saved_login.take();
+            Ok(())
         })
     }
 
+    pub(super) fn can_resume(&self) -> bool {
+        self.saved_login.borrow().is_some()
+    }
+
     pub(super) fn log_in(self: &Rc<Self>) -> Result<(), Error> {
+        // A new login replaces the saved one.
+        self.saved_login.take();
         let authorization = Authorization::new();
         // The page link stays on screen, so a browser that fails to open is not fatal.
         let _ = Command::new(BROWSER_OPENER)
