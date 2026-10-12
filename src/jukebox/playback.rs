@@ -25,6 +25,9 @@ const EQUALIZER_SPREAD: usize = 5;
 #[derive(Clone, PartialEq)]
 pub(super) struct NowPlaying {
     uri: Option<String>,
+    /// The track librespot was asked to play, which `uri` names differently when
+    /// Spotify relinks it to a playable copy.
+    requested: Option<String>,
     /// The track librespot is loading, which only becomes `uri` once it starts.
     loading: Option<String>,
     track: Option<Rc<Track>>,
@@ -48,6 +51,7 @@ impl Default for NowPlaying {
     fn default() -> Self {
         Self {
             uri: None,
+            requested: None,
             loading: None,
             track: None,
             playing: false,
@@ -93,8 +97,14 @@ impl NowPlaying {
             return true;
         }
         self.uri = Some(uri.to_owned());
+        self.requested = None;
         self.track = None;
         false
+    }
+
+    /// The playing track as lists name it.
+    fn listed_uri(&self) -> Option<String> {
+        self.requested.clone().or_else(|| self.uri.clone())
     }
 
     /// librespot also reports the next track when preloading it fails, while the
@@ -173,12 +183,22 @@ impl Jukebox {
                 };
                 self.change_track(audio_item.uri, cover, fallback);
             }
-            PlayerEvent::Playing { position_ms, .. } => {
-                self.now.update(|now| now.report(position_ms, true));
-            }
-            PlayerEvent::Paused { position_ms, .. } => {
-                self.now.update(|now| now.report(position_ms, false));
-            }
+            PlayerEvent::Playing {
+                position_ms,
+                track_id,
+                ..
+            } => self.now.update(|now| {
+                now.report(position_ms, true);
+                now.requested = track_id.to_uri().ok();
+            }),
+            PlayerEvent::Paused {
+                position_ms,
+                track_id,
+                ..
+            } => self.now.update(|now| {
+                now.report(position_ms, false);
+                now.requested = track_id.to_uri().ok();
+            }),
             PlayerEvent::Seeked { position_ms, .. }
             | PlayerEvent::PositionCorrection { position_ms, .. }
             | PlayerEvent::PositionChanged { position_ms, .. } => {
@@ -356,7 +376,7 @@ impl Jukebox {
     }
 
     pub(super) fn playing_uri(&self) -> Option<String> {
-        self.now.with(|now| now.uri.clone())
+        self.now.with(NowPlaying::listed_uri)
     }
 }
 
@@ -579,6 +599,17 @@ mod tests {
         });
         track.album.name = "Record".into();
         assert_eq!(details(&track), "Band · Record");
+    }
+
+    #[test]
+    fn a_relinked_track_keeps_its_listed_uri() {
+        let mut now = NowPlaying::default();
+        now.start("spotify:track:copy");
+        assert_eq!(now.listed_uri().as_deref(), Some("spotify:track:copy"));
+        now.requested = Some("spotify:track:listed".into());
+        assert_eq!(now.listed_uri().as_deref(), Some("spotify:track:listed"));
+        now.start("spotify:track:next");
+        assert_eq!(now.listed_uri().as_deref(), Some("spotify:track:next"));
     }
 
     #[test]
