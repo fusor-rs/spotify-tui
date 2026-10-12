@@ -66,6 +66,13 @@ impl NowPlaying {
         self.stopped = false;
     }
 
+    /// librespot rewinds a stopped track to its start; the last report may be
+    /// anywhere in it, such as where it last resumed.
+    fn stop(&mut self) {
+        self.report(0, false);
+        self.stopped = true;
+    }
+
     /// Adds the details of `uri`, unless another track started meanwhile.
     fn describe(&mut self, uri: &str, track: Option<Track>) {
         if self.uri.as_deref() == Some(uri) {
@@ -132,10 +139,7 @@ impl Jukebox {
             | PlayerEvent::PositionChanged { position_ms, .. } => {
                 self.now.update(|now| now.report(position_ms, now.playing));
             }
-            PlayerEvent::Stopped { .. } => self.now.update(|now| {
-                now.playing = false;
-                now.stopped = true;
-            }),
+            PlayerEvent::Stopped { .. } => self.now.update(NowPlaying::stop),
             PlayerEvent::VolumeChanged { volume } => self.now.update(|now| now.volume = volume),
             PlayerEvent::ShuffleChanged { shuffle } => self.now.update(|now| now.shuffle = shuffle),
             PlayerEvent::RepeatChanged { context, track } => self.now.update(|now| {
@@ -422,4 +426,19 @@ impl Jukebox {
 fn label(length: Duration) -> String {
     // Saturates only past 584 million years.
     duration(length.as_millis().try_into().unwrap_or(u64::MAX))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::NowPlaying;
+    use std::time::Duration;
+
+    #[test]
+    fn stopping_rewinds_to_the_start() {
+        let mut now = NowPlaying::default();
+        now.report(60_000, true);
+        now.stop();
+        assert_eq!(now.elapsed(), Duration::ZERO);
+        assert!(now.stopped && !now.playing);
+    }
 }
