@@ -84,6 +84,19 @@ impl NowPlaying {
         }
     }
 
+    /// Switches to `uri`; returns whether its details are already known, as
+    /// when repeat-one starts the same track again.
+    fn start(&mut self, uri: &str) -> bool {
+        self.loading = None;
+        self.stopped = false;
+        if self.uri.as_deref() == Some(uri) && self.track.is_some() {
+            return true;
+        }
+        self.uri = Some(uri.to_owned());
+        self.track = None;
+        false
+    }
+
     /// librespot also reports the next track when preloading it fails, while the
     /// current one plays on; it skips that one when it gets there.
     fn unavailable(&self, uri: Option<&str>) -> &'static str {
@@ -185,13 +198,11 @@ impl Jukebox {
     }
 
     fn change_track(self: &Rc<Self>, uri: String, cover: Option<String>) {
-        self.now.update(|now| {
-            now.uri = Some(uri.clone());
-            now.loading = None;
-            now.track = None;
-            now.stopped = false;
-        });
+        let known = self.now.update(|now| now.start(&uri));
         self.change_cover(&uri, cover);
+        if known {
+            return;
+        }
         let Some(catalog) = self.catalog() else {
             return;
         };
@@ -466,6 +477,7 @@ fn label(length: Duration) -> String {
 #[cfg(test)]
 mod tests {
     use super::{NowPlaying, Repeat};
+    use crate::spotify::{Album, Track};
     use std::time::Duration;
 
     #[test]
@@ -499,6 +511,27 @@ mod tests {
         );
         now.loading = None;
         assert!(now.unavailable(None).contains("next track"));
+    }
+
+    #[test]
+    fn restarting_a_track_keeps_its_details() {
+        let track = Track {
+            uri: "spotify:track:one".into(),
+            name: "One".into(),
+            artists: Vec::new(),
+            album: Album {
+                uri: "spotify:album:one".into(),
+                name: "One".into(),
+            },
+            duration_ms: 1_000,
+        };
+        let mut now = NowPlaying::default();
+        assert!(!now.start("spotify:track:one"));
+        now.describe("spotify:track:one", Some(track));
+        assert!(now.start("spotify:track:one"));
+        assert!(now.track.is_some());
+        assert!(!now.start("spotify:track:two"));
+        assert!(now.track.is_none());
     }
 
     #[test]
