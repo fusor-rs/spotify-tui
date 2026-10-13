@@ -61,6 +61,8 @@ pub(crate) struct Jukebox {
     search: Signal<String>,
     now: Signal<NowPlaying>,
     clock: Signal<usize>,
+    /// Frames of the equalizer, which counts faster than the clock.
+    frame: Signal<u64>,
     bar_width: Signal<usize>,
     help: Signal<bool>,
     notice: Signal<Option<Notice>>,
@@ -92,6 +94,7 @@ impl FromInputs for Jukebox {
             search: signal(String::new()),
             now: signal(NowPlaying::default()),
             clock: signal(0),
+            frame: signal(0),
             bar_width: signal(0),
             help: signal(false),
             notice: signal(None),

@@ -14,9 +14,13 @@ const VOLUME_STEP: u16 = u16::MAX / 20;
 const VOLUME_CELLS: u32 = 10;
 const PERCENT: u32 = 100;
 const EQUALIZER_LEVELS: [char; 8] = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
-const EQUALIZER_PATTERN: [usize; 12] = [2, 5, 7, 4, 6, 3, 1, 4, 7, 5, 2, 6];
 const EQUALIZER_BARS: usize = 4;
-const EQUALIZER_SPREAD: usize = 5;
+/// The equalizer moves at 60 frames per second while music plays.
+const FRAME: Duration = Duration::from_millis(16);
+const FRAMES_PER_SECOND: f64 = 60.0;
+/// Two waves per bar, in radians per second, so that no two bars move alike.
+const EQUALIZER_WAVES: [(f64, f64); EQUALIZER_BARS] =
+    [(7.0, 11.3), (9.1, 5.7), (6.3, 13.1), (10.7, 8.2)];
 
 /// What the speaker reports it is playing.
 #[derive(Clone, PartialEq)]
@@ -82,7 +86,9 @@ impl NowPlaying {
 
 impl Jukebox {
     pub(super) fn start_clock(self: &Rc<Self>) -> Result<(), Error> {
-        self.services.spawn(&self.owner, self.clone().run_clock())
+        self.services.spawn(&self.owner, self.clone().run_clock())?;
+        self.services
+            .spawn(&self.owner, self.clone().run_equalizer())
     }
 
     async fn run_clock(self: Rc<Self>) {
@@ -92,6 +98,22 @@ impl Jukebox {
                 return;
             }
             self.clock.update(|clock| *clock += 1);
+        }
+    }
+
+    /// Counts frames while music plays; paused, it checks four times a second.
+    async fn run_equalizer(self: Rc<Self>) {
+        loop {
+            let playing = self.now.with_untracked(|now| now.playing);
+            let Ok(sleep) = self.services.sleep(if playing { FRAME } else { TICK }) else {
+                return;
+            };
+            if sleep.await.is_err() {
+                return;
+            }
+            if playing {
+                self.frame.update(|frame| *frame += 1);
+            }
         }
     }
 
@@ -338,17 +360,50 @@ impl Jukebox {
         if !self.is_playing() {
             return EQUALIZER_LEVELS[0].to_string().repeat(EQUALIZER_BARS);
         }
-        let tick = self.clock.get();
-        (0..EQUALIZER_BARS)
-            .map(|bar| {
-                let step = (tick + bar * EQUALIZER_SPREAD) % EQUALIZER_PATTERN.len();
-                EQUALIZER_LEVELS[EQUALIZER_PATTERN[step]]
-            })
-            .collect()
+        equalizer(self.frame.get())
     }
+}
+
+/// The bars at `frame`: each follows the sum of its two waves.
+fn equalizer(frame: u64) -> String {
+    let seconds = frame as f64 / FRAMES_PER_SECOND;
+    let top = (EQUALIZER_LEVELS.len() - 1) as f64;
+    EQUALIZER_WAVES
+        .iter()
+        .map(|(fast, slow)| {
+            let wave = ((seconds * fast).sin() + (seconds * slow).sin()) / 4.0 + 0.5;
+            EQUALIZER_LEVELS[(wave * top).round() as usize]
+        })
+        .collect()
 }
 
 fn label(length: Duration) -> String {
     // Saturates only past 584 million years.
     duration(length.as_millis().try_into().unwrap_or(u64::MAX))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{EQUALIZER_BARS, equalizer};
+
+    #[test]
+    fn the_equalizer_moves_a_little_each_frame() {
+        let level = |bar: char| "▁▂▃▄▅▆▇█".chars().position(|level| level == bar);
+        let frames: Vec<Vec<usize>> = (0..600)
+            .map(|frame| equalizer(frame).chars().filter_map(level).collect())
+            .collect();
+        assert!(frames.iter().all(|bars| bars.len() == EQUALIZER_BARS));
+        // At 60 frames per second, a bar never jumps more than one level.
+        for pair in frames.windows(2) {
+            for (before, after) in pair[0].iter().zip(&pair[1]) {
+                assert!(before.abs_diff(*after) <= 1);
+            }
+        }
+        // Over ten seconds, every bar reaches both ends of the scale.
+        for bar in 0..EQUALIZER_BARS {
+            let levels: Vec<usize> = frames.iter().map(|bars| bars[bar]).collect();
+            assert_eq!(levels.iter().min(), Some(&0));
+            assert_eq!(levels.iter().max(), Some(&7));
+        }
+    }
 }
