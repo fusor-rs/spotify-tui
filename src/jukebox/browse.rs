@@ -1,5 +1,6 @@
 use super::{
     Jukebox, Tone,
+    keys::Jump,
     listing::{Listing, Loading, Row, Source},
 };
 use crate::spotify::{self, Catalog, Play, search_uri};
@@ -34,6 +35,7 @@ impl Jukebox {
         let Some((listing, window)) = self.history.borrow_mut().pop() else {
             return false;
         };
+        self.to_end.set(false);
         self.generation.set(self.generation.get() + 1);
         let interrupted = listing.loading == Loading::Busy;
         self.listing.set(listing);
@@ -48,6 +50,7 @@ impl Jukebox {
         let Some(catalog) = self.catalog() else {
             return;
         };
+        self.to_end.set(false);
         let generation = self.next_generation();
         self.listing.set(Listing::new(source.clone()));
         self.window.update(|window| window.select(0, 0));
@@ -63,7 +66,11 @@ impl Jukebox {
         let Some(catalog) = self.catalog() else {
             return;
         };
-        let end = self.window.with_untracked(|window| window.end()) + PREFETCH_ROWS;
+        let end = if self.to_end.get() {
+            usize::MAX
+        } else {
+            self.window.with_untracked(|window| window.end()) + PREFETCH_ROWS
+        };
         let chunk = self.listing.update(|listing| {
             if listing.requested >= end.min(listing.uris.len()) {
                 listing.loading = Loading::Idle;
@@ -80,9 +87,15 @@ impl Jukebox {
         let generation = self.next_generation();
         let task = async move { catalog.tracks(chunk).await };
         self.load(generation, task, |jukebox, tracks| {
-            jukebox
-                .listing
-                .update(|listing| listing.tracks.extend(tracks.into_iter().map(Rc::new)));
+            let length = jukebox.listing.update(|listing| {
+                listing.tracks.extend(tracks.into_iter().map(Rc::new));
+                listing.tracks.len()
+            });
+            if jukebox.to_end.get() {
+                jukebox
+                    .window
+                    .update(|window| window.select(length.saturating_sub(1), length));
+            }
             jukebox.load_more();
         });
     }
@@ -171,6 +184,15 @@ impl Jukebox {
             EventPayload::Input(Input::Key { key, modifiers, .. })
                 if !modifiers.control && !modifiers.alt && !modifiers.super_key =>
             {
+                let key = match self.jump(key) {
+                    Some(Jump::Pending) => {
+                        event.prevent_default();
+                        return Ok(());
+                    }
+                    Some(Jump::Top) => Key::Home,
+                    Some(Jump::Bottom) => Key::End,
+                    None => key,
+                };
                 let key = match key {
                     Key::Char('j') => Key::Down,
                     Key::Char('k') => Key::Up,
@@ -197,6 +219,8 @@ impl Jukebox {
     }
 
     fn move_selection(self: &Rc<Self>, key: Key) {
+        // End loads the rest of the list and keeps to its last row; any other move stops that.
+        self.to_end.set(key == Key::End);
         let length = self.listing.with_untracked(|listing| listing.tracks.len());
         self.window.update(|window| window.navigate(key, length));
         if self
