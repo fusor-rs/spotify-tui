@@ -11,6 +11,7 @@ const CHUNK: usize = 100;
 /// Rows below the window that load before they scroll into view.
 const PREFETCH_ROWS: usize = 30;
 const HEADER_ROWS: usize = 1;
+const SHOW_PREFIX: &str = "spotify:show:";
 
 impl Jukebox {
     /// Opens a library section, forgetting where the user drilled down from.
@@ -24,7 +25,7 @@ impl Jukebox {
         self.focus("tracks");
     }
 
-    fn drill(self: &Rc<Self>, source: Source) {
+    pub(super) fn drill(self: &Rc<Self>, source: Source) {
         let current = (self.listing.get_untracked(), self.window.get_untracked());
         self.history.borrow_mut().push(current);
         self.show(source);
@@ -48,8 +49,10 @@ impl Jukebox {
         let Some(catalog) = self.catalog() else {
             return;
         };
-        if let Source::Playlist(playlist) = &source {
-            self.load_playlist_header(&playlist.uri);
+        match &source {
+            Source::Playlist(playlist) => self.load_playlist_header(&playlist.uri),
+            Source::Search(text) if !text.is_empty() => self.load_results(text),
+            _ => {}
         }
         let generation = self.next_generation();
         self.listing.set(Listing::new(source.clone()));
@@ -171,6 +174,16 @@ impl Jukebox {
             EventPayload::Input(Input::Key {
                 key: Key::Enter, ..
             }) => self.play_selected()?,
+            // Tab goes to the boxes of a search, or on as usual without them.
+            EventPayload::Input(Input::Key {
+                key: Key::Tab,
+                modifiers,
+                ..
+            }) if !modifiers.shift => {
+                if !self.enter_results() {
+                    return Ok(());
+                }
+            }
             EventPayload::Input(Input::Key { key, modifiers, .. })
                 if !modifiers.control && !modifiers.alt && !modifiers.super_key =>
             {
@@ -234,6 +247,11 @@ impl Jukebox {
         let play = self.listing.with_untracked(|listing| {
             let track = track.uri.clone();
             match &listing.source {
+                // A playlist's context leaves its episodes out, so they would not play.
+                Source::Playlist(_) if listing.has_episodes() => Play::Tracks {
+                    uris: listing.uris.to_vec(),
+                    track,
+                },
                 Source::Liked => Play::Context {
                     uri: catalog.liked_uri(),
                     track,
@@ -250,6 +268,10 @@ impl Jukebox {
                     uri: artist.uri.clone(),
                     track,
                 },
+                Source::Show(show) => Play::Context {
+                    uri: show.uri.clone(),
+                    track,
+                },
                 Source::Search(_) | Source::Recent => Play::Tracks {
                     uris: listing.uris.to_vec(),
                     track,
@@ -263,6 +285,9 @@ impl Jukebox {
 
     pub(super) fn open_album(self: &Rc<Self>) {
         match self.selected() {
+            Some(track) if track.album.uri.starts_with(SHOW_PREFIX) => {
+                self.drill(Source::Show(Rc::new(track.album.clone())));
+            }
             Some(track) => self.drill(Source::Album(Rc::new(track.album.clone()))),
             None => self.inform("Select a track to open its album."),
         }
@@ -361,8 +386,8 @@ async fn resolve(catalog: &Catalog, source: &Source) -> Result<Vec<String>, spot
         Source::Recent => return catalog.recent_tracks().await,
         Source::Search(text) => search_uri(text),
         Source::Liked => catalog.liked_uri(),
-        Source::Playlist(playlist) => playlist.uri.clone(),
-        Source::Album(album) => album.uri.clone(),
+        Source::Playlist(playlist) => return catalog.playlist_tracks(playlist.uri.clone()).await,
+        Source::Album(album) | Source::Show(album) => album.uri.clone(),
         Source::Artist(artist) => artist.uri.clone(),
     };
     catalog.context_tracks(context).await

@@ -16,6 +16,7 @@ use std::{
 
 const ROOTLIST_LENGTH: usize = 1000;
 const TRACK_PREFIX: &str = "spotify:track:";
+const EPISODE_PREFIX: &str = "spotify:episode:";
 const PLAYLIST_PREFIX: &str = "spotify:playlist:";
 const SEARCH_PREFIX: &str = "spotify:search:";
 const STATUS_OK: i32 = 200;
@@ -28,7 +29,9 @@ struct Profile {
 /// Reads the library and catalog through the same session that plays audio.
 #[derive(Clone)]
 pub(crate) struct Catalog {
-    session: Session,
+    pub(super) session: Session,
+    /// For requests outside librespot, such as the sections of a search.
+    pub(super) http: reqwest::Client,
 }
 
 #[derive(Deserialize)]
@@ -45,7 +48,10 @@ struct PlayContext {
 
 impl Catalog {
     pub(crate) fn new(session: Session) -> Self {
-        Self { session }
+        Self {
+            session,
+            http: reqwest::Client::new(),
+        }
     }
 
     pub(crate) fn liked_uri(&self) -> String {
@@ -134,7 +140,26 @@ impl Catalog {
         .await
     }
 
-    /// Looks up many tracks in one request, in the order of `uris`; unavailable tracks are left out.
+    /// The tracks and episodes of a playlist. Spotify's context of a playlist leaves its
+    /// episodes out, and is empty for a playlist of podcasts, so the playlist itself is read.
+    pub(crate) async fn playlist_tracks(&self, uri: String) -> Result<Vec<String>, Error> {
+        let session = self.session.clone();
+        run(async move {
+            let id = SpotifyId::from_base62(uri.strip_prefix(PLAYLIST_PREFIX).unwrap_or(&uri))?;
+            let bytes = session.spclient().get_playlist(&id).await?;
+            let playlist = SelectedListContent::parse_from_bytes(&bytes)?;
+            let uris = playlist
+                .contents
+                .items
+                .iter()
+                .map(|item| item.uri().to_owned());
+            Ok(unique_tracks(uris))
+        })
+        .await
+    }
+
+    /// Looks up many tracks and episodes in one request, in the order of `uris`;
+    /// unavailable ones are left out.
     pub(crate) async fn tracks(&self, uris: Vec<String>) -> Result<Vec<Track>, Error> {
         let session = self.session.clone();
         run(async move {
@@ -149,8 +174,8 @@ impl Catalog {
                 .flat_map(|array| &array.extension_data)
                 .filter(|data| data.header.status_code == STATUS_OK)
                 .map(|data| {
-                    let message = metadata::Track::parse_from_bytes(&data.extension_data.value)?;
-                    Ok((data.entity_uri.clone(), track(&data.entity_uri, &message)?))
+                    let uri = &data.entity_uri;
+                    Ok((uri.clone(), describe(uri, &data.extension_data.value)?))
                 })
                 .collect::<Result<HashMap<_, _>, Error>>()?;
             Ok(uris.iter().filter_map(|uri| found.remove(uri)).collect())
@@ -175,7 +200,7 @@ pub(crate) fn search_uri(text: &str) -> String {
 }
 
 /// librespot's requests are `Send`; they run on the Tokio runtime, not the UI thread.
-async fn run<T: Send + 'static>(
+pub(super) async fn run<T: Send + 'static>(
     task: impl Future<Output = Result<T, Error>> + Send + 'static,
 ) -> Result<T, Error> {
     tokio::spawn(task).await?
@@ -193,7 +218,7 @@ async fn owner_name(session: &Session, username: &str) -> Option<String> {
 }
 
 /// Playlist descriptions are HTML: links are kept as their text, entities decoded.
-fn plain_text(html: &str) -> String {
+pub(super) fn plain_text(html: &str) -> String {
     let mut text = String::with_capacity(html.len());
     let mut in_tag = false;
     let mut characters = html.chars().peekable();
@@ -219,22 +244,29 @@ fn plain_text(html: &str) -> String {
         ("&amp;", "&"),
     ]
     .iter()
-    .fold(text, |text, (entity, character)| {
-        text.replace(entity, character)
-    })
+    .fold(text, |text, (entity, character)| text.replace(entity, character))
 }
 
+/// The tracks and episodes among `uris`, each once, in order.
 fn unique_tracks(uris: impl Iterator<Item = String>) -> Vec<String> {
     let mut seen = HashSet::new();
-    uris.filter(|uri| uri.starts_with(TRACK_PREFIX) && seen.insert(uri.clone()))
-        .collect()
+    uris.filter(|uri| {
+        (uri.starts_with(TRACK_PREFIX) || uri.starts_with(EPISODE_PREFIX))
+            && seen.insert(uri.clone())
+    })
+    .collect()
 }
 
 fn track_request(uri: &str) -> EntityRequest {
+    let kind = if uri.starts_with(EPISODE_PREFIX) {
+        ExtensionKind::EPISODE_V4
+    } else {
+        ExtensionKind::TRACK_V4
+    };
     EntityRequest {
         entity_uri: uri.to_owned(),
         query: vec![ExtensionQuery {
-            extension_kind: EnumOrUnknown::new(ExtensionKind::TRACK_V4),
+            extension_kind: EnumOrUnknown::new(kind),
             ..ExtensionQuery::default()
         }],
         ..EntityRequest::default()
@@ -264,20 +296,32 @@ fn track(uri: &str, message: &metadata::Track) -> Result<Track, Error> {
     })
 }
 
+/// The track or episode that `bytes` describe.
+fn describe(uri: &str, bytes: &[u8]) -> Result<Track, Error> {
+    if uri.starts_with(EPISODE_PREFIX) {
+        episode(uri, &metadata::Episode::parse_from_bytes(bytes)?)
+    } else {
+        track(uri, &metadata::Track::parse_from_bytes(bytes)?)
+    }
+}
+
+/// An episode lists like a track whose album is its show, and has no artists.
+fn episode(uri: &str, message: &metadata::Episode) -> Result<Track, Error> {
+    Ok(Track {
+        uri: uri.to_owned(),
+        name: message.name().to_owned(),
+        artists: Vec::new(),
+        album: Album {
+            uri: SpotifyUri::try_from(&*message.show)?.to_uri()?,
+            name: message.show.name().to_owned(),
+        },
+        duration_ms: u64::from(message.duration().unsigned_abs()),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::{search_uri, unique_tracks};
-
-    #[test]
-    fn descriptions_lose_their_html() {
-        assert_eq!(
-            super::plain_text(
-                "Chill beats with <a href=\"spotify:playlist:x\">Lofi Girl</a> &amp; friends. It&#x27;s &quot;on&quot;"
-            ),
-            "Chill beats with Lofi Girl & friends. It's \"on\""
-        );
-        assert_eq!(super::plain_text("1 < 2"), "1 < 2");
-    }
 
     #[test]
     fn search_uris_encode_the_query() {
@@ -291,13 +335,15 @@ mod tests {
         let uris = [
             "spotify:track:b",
             "spotify:episode:x",
+            "spotify:local:artist:album:name:60",
             "spotify:track:a",
             "spotify:track:b",
+            "spotify:episode:x",
         ]
         .map(String::from);
         assert_eq!(
             unique_tracks(uris.into_iter()),
-            ["spotify:track:b", "spotify:track:a"]
+            ["spotify:track:b", "spotify:episode:x", "spotify:track:a"]
         );
     }
 }

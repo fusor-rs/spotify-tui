@@ -3,6 +3,7 @@ mod header;
 mod keys;
 mod listing;
 mod playback;
+mod results;
 mod session;
 mod view;
 
@@ -11,6 +12,7 @@ use fusor::{FromInputs, OwnerHandle, Signal, signal};
 use hypercmd::{Error, Node, Services};
 use listing::{Listing, Source, Window};
 use playback::NowPlaying;
+use results::Found;
 use std::{
     cell::{Cell, RefCell},
     collections::{HashMap, HashSet},
@@ -61,6 +63,8 @@ pub(crate) struct Jukebox {
     history: RefCell<Vec<(Listing, Window)>>,
     generation: Cell<u64>,
     search: Signal<String>,
+    /// The artists, albums, playlists and podcasts of the last search.
+    found: Signal<Option<Found>>,
     now: Signal<NowPlaying>,
     clock: Signal<usize>,
     bar_width: Signal<usize>,
@@ -102,6 +106,7 @@ impl FromInputs for Jukebox {
             history: RefCell::new(Vec::new()),
             generation: Cell::new(0),
             search: signal(String::new()),
+            found: signal(None),
             now: signal(NowPlaying::default()),
             clock: signal(0),
             bar_width: signal(0),

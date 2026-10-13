@@ -2,6 +2,8 @@ use crate::spotify::{Album, Artist, Playlist, Track};
 use hypercmd::Key;
 use std::{ops::Range, rc::Rc};
 
+const EPISODE_PREFIX: &str = "spotify:episode:";
+
 /// Something the main pane can list.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum Source {
@@ -11,6 +13,8 @@ pub(crate) enum Source {
     Playlist(Rc<Playlist>),
     Album(Rc<Album>),
     Artist(Rc<Artist>),
+    /// A podcast, which episodes name as their album.
+    Show(Rc<Album>),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -113,6 +117,7 @@ impl Source {
             Self::Playlist(playlist) => playlist.name.clone(),
             Self::Album(album) => format!("Album · {}", album.name),
             Self::Artist(artist) => format!("Artist · {}", artist.name),
+            Self::Show(show) => format!("Podcast · {}", show.name),
         }
     }
 
@@ -122,7 +127,9 @@ impl Source {
             Self::Search(_) => "Nothing matched. Try other words.",
             Self::Liked => "Songs you like in Spotify appear here.",
             Self::Recent => "Nothing played recently.",
-            Self::Playlist(_) | Self::Album(_) | Self::Artist(_) => "No playable tracks here.",
+            Self::Playlist(_) | Self::Album(_) | Self::Artist(_) | Self::Show(_) => {
+                "No playable tracks here."
+            }
         }
     }
 }
@@ -142,9 +149,23 @@ impl Listing {
         match &self.loading {
             Loading::Busy if self.tracks.is_empty() => "Loading…".into(),
             Loading::Failed(error) => error.clone(),
-            _ if self.uris.len() == 1 => "1 song".into(),
-            _ => format!("{} songs", self.uris.len()),
+            _ => {
+                let count = self.uris.len();
+                let noun = if self.uris.iter().all(|uri| uri.starts_with(EPISODE_PREFIX)) {
+                    "episode"
+                } else {
+                    "song"
+                };
+                let plural = if count == 1 { "" } else { "s" };
+                format!("{count} {noun}{plural}")
+            }
         }
+    }
+
+    /// Whether some entries are podcast episodes, which Spotify does not play from
+    /// the context of a playlist.
+    pub(crate) fn has_episodes(&self) -> bool {
+        self.uris.iter().any(|uri| uri.starts_with(EPISODE_PREFIX))
     }
 
     pub(crate) fn rows(&self, window: Window, playing: Option<&str>) -> Vec<Row> {
@@ -186,6 +207,24 @@ pub(crate) fn duration(milliseconds: u64) -> String {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn podcast_listings_count_episodes() {
+        let mut listing = super::Listing::new(super::Source::Liked);
+        listing.loading = super::Loading::Idle;
+        listing.uris = ["spotify:episode:a", "spotify:episode:b"]
+            .map(String::from)
+            .into();
+        assert_eq!(listing.summary(), "2 episodes");
+        assert!(listing.has_episodes());
+        listing.uris = ["spotify:episode:a", "spotify:track:b"]
+            .map(String::from)
+            .into();
+        assert_eq!(listing.summary(), "2 songs");
+        listing.uris = ["spotify:track:b"].map(String::from).into();
+        assert_eq!(listing.summary(), "1 song");
+        assert!(!listing.has_episodes());
+    }
+
     use super::{Key, Window, duration};
 
     #[test]

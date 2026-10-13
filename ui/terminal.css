@@ -73,6 +73,21 @@ th, td { padding: 0 1ch 0 0; white-space: pre; overflow: hidden; }
 .selected { background-color: #2A2A2A; }
 .playing { color: #1DB954; font-weight: bold; }
 .empty { padding: 1ch; color: #B3B3B3; }
+.results { flex-direction: row; height: 10ch; flex-shrink: 0; gap: 1ch; }
+.results-box {
+  width: 0;
+  flex-grow: 1;
+  flex-shrink: 1;
+  min-width: 0;
+  border-style: rounded;
+  border-color: #2A2A2A;
+  padding: 0 1ch;
+}
+.results-title { height: 1ch; color: #6A6A6A; }
+.results-rows { flex-grow: 1; flex-shrink: 1; min-height: 0; overflow: auto; }
+.result { height: 1ch; padding: 0; white-space: pre; overflow: hidden; color: #B3B3B3; }
+.result:focus { color: #FFFFFF; background-color: #2A2A2A; text-decoration: none; }
+.results-note { height: 1ch; flex-shrink: 0; color: #6A6A6A; white-space: pre; overflow: hidden; }
 .position { height: 1ch; padding: 0 1ch; color: #6A6A6A; white-space: pre; overflow: hidden; }
 
 .now-playing {

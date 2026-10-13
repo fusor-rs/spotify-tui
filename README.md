@@ -108,7 +108,9 @@ For development, `cargo run --locked` builds and launches the app from the check
 
 The sidebar lists your library and playlists. Choose a section to see its tracks,
 then use the arrow keys and Enter to start playback. Press `/` or Ctrl+F to search
-the catalog. With a track selected, press `o` to open its album or `a` to open
+the catalog: the songs found fill the list, and boxes below it show the artists,
+albums, playlists and podcasts found. Tab moves from the list to those boxes,
+where `h`, `j`, `k` and `l` move between results and Enter opens one. With a track selected, press `o` to open its album or `a` to open
 its artist; Escape goes back.
 
 ### Control playback
