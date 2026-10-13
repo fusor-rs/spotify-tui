@@ -222,6 +222,7 @@ fn track(uri: &str, message: &metadata::Track) -> Result<Track, Error> {
             name: message.album.name().to_owned(),
         },
         duration_ms: u64::from(message.duration().unsigned_abs()),
+        released: None,
     })
 }
 
@@ -235,6 +236,7 @@ fn describe(uri: &str, bytes: &[u8]) -> Result<Track, Error> {
 }
 
 /// An episode lists like a track whose album is its show, and has no artists.
+/// Lists show the show and the release date in the artist and album columns.
 fn episode(uri: &str, message: &metadata::Episode) -> Result<Track, Error> {
     Ok(Track {
         uri: uri.to_owned(),
@@ -245,6 +247,11 @@ fn episode(uri: &str, message: &metadata::Episode) -> Result<Track, Error> {
             name: message.show.name().to_owned(),
         },
         duration_ms: u64::from(message.duration().unsigned_abs()),
+        released: message
+            .publish_time
+            .as_ref()
+            .filter(|date| date.year() > 0)
+            .map(|date| format!("{:04}-{:02}-{:02}", date.year(), date.month(), date.day())),
     })
 }
 

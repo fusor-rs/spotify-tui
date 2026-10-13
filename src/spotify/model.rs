@@ -17,6 +17,8 @@ pub(crate) struct Track {
     pub(crate) artists: Vec<Artist>,
     pub(crate) album: Album,
     pub(crate) duration_ms: u64,
+    /// When an episode came out, as `YYYY-MM-DD`; tracks have none.
+    pub(crate) released: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq)]

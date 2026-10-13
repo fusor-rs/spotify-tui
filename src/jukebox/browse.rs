@@ -279,6 +279,12 @@ impl Jukebox {
     }
 
     pub(super) fn open_artist(self: &Rc<Self>) {
+        if let Some(track) = self.selected()
+            && track.album.uri.starts_with(SHOW_PREFIX)
+        {
+            self.drill(Source::Show(Rc::new(track.album.clone())));
+            return;
+        }
         match self
             .selected()
             .and_then(|track| track.artists.first().cloned())
@@ -319,6 +325,22 @@ impl Jukebox {
         let playing = self.playing_uri();
         self.listing
             .with(|listing| listing.rows(window, playing.as_deref()))
+    }
+
+    pub(super) fn artist_heading(&self) -> &'static str {
+        if self.listing.with(Listing::episodes_only) {
+            "Podcast"
+        } else {
+            "Artist"
+        }
+    }
+
+    pub(super) fn album_heading(&self) -> &'static str {
+        if self.listing.with(Listing::episodes_only) {
+            "Released"
+        } else {
+            "Album"
+        }
     }
 
     pub(super) fn listing_title(&self) -> String {
