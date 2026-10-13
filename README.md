@@ -116,7 +116,7 @@ its artist; Escape goes back.
 The bar at the bottom shows what's playing. Use its buttons or the keyboard to
 pause, skip, seek, change volume, shuffle, or cycle repeat modes. Press `z` to
 add the selected track to the queue; queued tracks play after the current one.
-While `spt` runs, other Spotify apps list this computer as **spotify-tui**, so
+While `spt` runs, other Spotify apps list this computer as **Spotify**, so
 you can also control its playback from your phone.
 
 On Linux, `spt` registers as an [MPRIS](https://specifications.freedesktop.org/mpris-spec/latest/)

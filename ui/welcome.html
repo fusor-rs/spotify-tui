@@ -2,7 +2,7 @@
   <section class="welcome">
     <div class="welcome-card">
       <pre class="welcome-logo">{{ LOGO.trim_end_matches('\n') }}</pre>
-      <h1 class="welcome-title">spotify-tui</h1>
+      <h1 class="welcome-title">Spotify</h1>
       <p class="welcome-tagline">Your music, in the terminal.</p>
       <If condition="{{ matches!(state.jukebox.screen.get(), Screen::LoggedOut | Screen::Failed(_)) }}">
         <button id="log-in" class="primary" autofocus

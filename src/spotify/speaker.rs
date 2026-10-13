@@ -14,7 +14,7 @@ use librespot_playback::{
 use std::sync::Arc;
 
 /// The name this computer shows in every Spotify Connect device list.
-pub(crate) const DEVICE_NAME: &str = "spotify-tui";
+pub(crate) const DEVICE_NAME: &str = "Spotify";
 const INITIAL_VOLUME: u16 = u16::MAX / 2;
 
 /// A Spotify Connect speaker that plays audio on this computer.

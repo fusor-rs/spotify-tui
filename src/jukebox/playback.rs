@@ -104,7 +104,7 @@ impl Jukebox {
         while let Some(event) = events.recv().await {
             self.apply(event);
         }
-        self.warn("The speaker stopped. Restart spotify-tui to play again.".into());
+        self.warn("The speaker stopped. Restart spt to play again.".into());
     }
 
     fn apply(self: &Rc<Self>, event: PlayerEvent) {

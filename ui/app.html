@@ -5,7 +5,7 @@
     </If>
     <If condition="{{ state.screen.get() == Screen::Library }}">
       <div class="topbar">
-        <p class="brand"><span class="equalizer">{{ state.equalizer() }}</span> spotify-tui</p>
+        <p class="brand"><span class="equalizer">{{ state.equalizer() }}</span> Spotify</p>
         <p class="topbar-fill"></p>
         <button on:click="state.start_search()">Search  /</button>
         <button on:click="state.open_help()">Keys  ?</button>

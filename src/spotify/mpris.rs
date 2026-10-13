@@ -388,7 +388,7 @@ impl Player {
 
     fn open_uri(&self, _uri: String) -> fdo::Result<()> {
         Err(fdo::Error::NotSupported(
-            "spotify-tui opens tracks from its own window".into(),
+            "spt opens tracks from its own window".into(),
         ))
     }
 

@@ -88,7 +88,7 @@ impl Jukebox {
             Screen::Connecting => "Connecting to Spotify…".into(),
             Screen::LoggedOut => "Log in once; your login is kept in the system keychain.".into(),
             Screen::Waiting(_) => {
-                "Approve spotify-tui in your browser. This screen continues by itself.".into()
+                "Approve the login in your browser. This screen continues by itself.".into()
             }
             Screen::Failed(error) => error,
             Screen::Library => String::new(),
