@@ -13,6 +13,7 @@ use listing::{Listing, Source, Window};
 use playback::NowPlaying;
 use std::{
     cell::{Cell, RefCell},
+    collections::{HashMap, HashSet},
     future::Future,
     rc::Rc,
 };
@@ -66,6 +67,14 @@ pub(crate) struct Jukebox {
     help: Signal<bool>,
     /// The details of the playlist opened last, for the header above its tracks.
     playlist: Signal<Option<Rc<PlaylistDetails>>>,
+    /// Playlist headers already loaded, by playlist URI.
+    headers: RefCell<HashMap<String, Rc<PlaylistDetails>>>,
+    /// Playlist headers on their way.
+    fetching_headers: RefCell<HashSet<String>>,
+    /// Whether the tracks of a playlist wait for its header.
+    header_pending: Signal<bool>,
+    /// The playlist the sidebar rests on, whose header may load ahead of Enter.
+    focused_playlist: RefCell<Option<String>>,
     notice: Signal<Option<Notice>>,
     root: RefCell<Option<Node>>,
     saved_login: RefCell<Option<String>>,
@@ -98,6 +107,10 @@ impl FromInputs for Jukebox {
             bar_width: signal(0),
             help: signal(false),
             playlist: signal(None),
+            headers: RefCell::new(HashMap::new()),
+            fetching_headers: RefCell::new(HashSet::new()),
+            header_pending: signal(false),
+            focused_playlist: RefCell::new(None),
             notice: signal(None),
             root: RefCell::new(None),
             saved_login: RefCell::new(startup.refresh_token),

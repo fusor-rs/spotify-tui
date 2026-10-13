@@ -10,7 +10,7 @@
     <p class="pane-title playlists-title">PLAYLISTS</p>
     <div id="playlists">
       <ForEach items="{{ state.jukebox.playlists.get() }}" key="{{ |playlist| playlist.uri.clone() }}">
-        <button class="shelf"
+        <button class="shelf" on:focus="state.jukebox.focus_playlist(&item.get())"
                 class:current="{{ state.jukebox.is_current(&Source::Playlist(item.get())) }}"
                 on:click="state.jukebox.open_shelf(Source::Playlist(item.get()))">{{
           item.get().name.clone()
