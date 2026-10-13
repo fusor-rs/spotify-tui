@@ -11,10 +11,19 @@
           if state.jukebox.is_playing() { "‖ Pause" } else { "▶ Play" }
         }}</button>
         <button class="control" on:click="state.jukebox.command(Command::Next)">▶|</button>
-        <button class="control" class:on="{{ state.jukebox.shuffle_on() }}"
-                on:click="state.jukebox.toggle_shuffle()">⇄ Shuffle</button>
-        <button class="control" class:on="{{ state.jukebox.repeat_mode() != Repeat::Off }}"
-                on:click="state.jukebox.cycle_repeat()">{{ state.jukebox.repeat_label() }}</button>
+      </div>
+      <div class="side">
+        <div class="modes">
+          <button class="control" class:on="{{ state.jukebox.shuffle_on() }}"
+                  on:click="state.jukebox.toggle_shuffle()">⇄ Shuffle</button>
+          <button class="control" class:on="{{ state.jukebox.repeat_mode() != Repeat::Off }}"
+                  on:click="state.jukebox.cycle_repeat()">{{ state.jukebox.repeat_label() }}</button>
+        </div>
+        <p class="volume"><span class="volume-on">{{
+          state.jukebox.volume_meter().0
+        }}</span><span class="volume-off">{{ state.jukebox.volume_meter().1 }}</span><span class="volume-percent">{{
+          state.jukebox.volume_percent()
+        }}</span></p>
       </div>
     </div>
     <div class="progress-line">
@@ -24,8 +33,7 @@
           state.jukebox.progress_played()
         }}</span><span class="left">{{ state.jukebox.progress_left() }}</span></p>
       </div>
-      <p class="time">{{ state.jukebox.length_label() }}</p>
-      <p class="volume">{{ state.jukebox.volume_label() }}</p>
+      <p class="time time-end">{{ state.jukebox.length_label() }}</p>
     </div>
   </section>
 </template>

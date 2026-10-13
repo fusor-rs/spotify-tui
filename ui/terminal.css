@@ -78,20 +78,27 @@ th, td { padding: 0 1ch 0 0; white-space: pre; overflow: hidden; }
   padding: 0 1ch;
 }
 .track-line { flex-direction: row; height: 2ch; gap: 2ch; }
-.track-text { flex-grow: 1; flex-shrink: 1; min-width: 0; }
+/* The text and the side share the room equally, so the controls stay centered. */
+.track-text { width: 0; flex-grow: 1; flex-shrink: 1; min-width: 0; }
+.side { width: 0; flex-grow: 1; flex-shrink: 1; min-width: 0; align-items: flex-end; }
+.modes { flex-direction: row; height: 1ch; gap: 2ch; }
 .track-title { height: 1ch; font-weight: bold; white-space: pre; overflow: hidden; }
 .track-details { height: 1ch; color: #B3B3B3; white-space: pre; overflow: hidden; }
-.controls { flex-direction: row; height: 1ch; gap: 1ch; }
+.controls { flex-direction: row; height: 1ch; gap: 2ch; flex-shrink: 0; }
 .control { color: #B3B3B3; }
 .play { color: #FFFFFF; font-weight: bold; }
 .on { color: #1DB954; }
 .progress-line { flex-direction: row; height: 1ch; gap: 1ch; }
 .time { width: 7ch; flex-shrink: 0; color: #B3B3B3; white-space: pre; }
+.time-end { width: 8ch; padding: 0 0 0 1ch; }
 .bar { flex-grow: 1; flex-shrink: 1; min-width: 0; }
 .bar-text { white-space: pre; overflow: hidden; }
 .played { color: #1DB954; }
 .left { color: #3E3E3E; }
-.volume { color: #B3B3B3; white-space: pre; }
+.volume { height: 1ch; white-space: pre; }
+.volume-on { color: #1DB954; }
+.volume-off { color: #3E3E3E; }
+.volume-percent { color: #B3B3B3; }
 
 .notice { height: 1ch; padding: 0 1ch; white-space: pre; overflow: hidden; color: #1DB954; }
 

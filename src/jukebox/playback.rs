@@ -11,7 +11,8 @@ const TICK: Duration = Duration::from_millis(250);
 pub(super) const SEEK_STEP: Duration = Duration::from_secs(10);
 /// One step of the volume keys: 5% of the speaker's range.
 const VOLUME_STEP: u16 = u16::MAX / 20;
-const VOLUME_CELLS: u32 = 10;
+/// The bars of the volume meter, rising from left to right.
+const VOLUME_BARS: [char; 8] = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
 const PERCENT: u32 = 100;
 const EQUALIZER_LEVELS: [char; 8] = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
 const EQUALIZER_PATTERN: [usize; 12] = [2, 5, 7, 4, 6, 3, 1, 4, 7, 5, 2, 6];
@@ -307,16 +308,18 @@ impl Jukebox {
         }
     }
 
-    pub(super) fn volume_label(&self) -> String {
-        let percent = self
-            .now
-            .with(|now| u32::from(now.volume) * PERCENT / u32::from(u16::MAX));
-        let filled = percent.div_ceil(PERCENT / VOLUME_CELLS);
-        format!(
-            "{}{} {percent:>3}%",
-            "▮".repeat(filled as usize),
-            "▯".repeat(VOLUME_CELLS.saturating_sub(filled) as usize)
-        )
+    fn percent(&self) -> u32 {
+        self.now
+            .with(|now| u32::from(now.volume) * PERCENT / u32::from(u16::MAX))
+    }
+
+    /// The bars of the volume meter that are lit and those that are not.
+    pub(super) fn volume_meter(&self) -> (String, String) {
+        volume_meter(self.percent())
+    }
+
+    pub(super) fn volume_percent(&self) -> String {
+        format!(" {:>3}%", self.percent())
     }
 
     pub(super) fn shuffle_on(&self) -> bool {
@@ -348,7 +351,31 @@ impl Jukebox {
     }
 }
 
+/// A meter of bars that rise from left to right, lit up to `percent`.
+fn volume_meter(percent: u32) -> (String, String) {
+    let lit = (percent * VOLUME_BARS.len() as u32).div_ceil(PERCENT) as usize;
+    let lit = lit.min(VOLUME_BARS.len());
+    (
+        VOLUME_BARS[..lit].iter().collect(),
+        VOLUME_BARS[lit..].iter().collect(),
+    )
+}
+
 fn label(length: Duration) -> String {
     // Saturates only past 584 million years.
     duration(length.as_millis().try_into().unwrap_or(u64::MAX))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::volume_meter;
+
+    #[test]
+    fn the_volume_meter_lights_its_bars_in_order() {
+        let lit = |percent| volume_meter(percent).0;
+        assert_eq!(volume_meter(0), (String::new(), "▁▂▃▄▅▆▇█".into()));
+        assert_eq!(lit(1), "▁");
+        assert_eq!(lit(50), "▁▂▃▄");
+        assert_eq!(volume_meter(100), ("▁▂▃▄▅▆▇█".into(), String::new()));
+    }
 }
