@@ -22,11 +22,6 @@ button:focus { color: #FFFFFF; background-color: #2A2A2A; text-decoration: under
 .primary { color: #121212; background-color: #1DB954; font-weight: bold; padding: 0 2ch; }
 .primary:focus { color: #121212; background-color: #1ED760; text-decoration: none; }
 
-.topbar { flex-direction: row; height: 1ch; gap: 2ch; padding: 0 1ch; }
-.brand { white-space: pre; font-weight: bold; }
-.equalizer { color: #1DB954; }
-.topbar-fill { flex-grow: 1; }
-
 .body { flex-direction: row; flex-grow: 1; flex-shrink: 1; min-height: 0; }
 .shelves {
   width: 28ch;

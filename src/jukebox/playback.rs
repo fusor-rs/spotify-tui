@@ -13,10 +13,6 @@ pub(super) const SEEK_STEP: Duration = Duration::from_secs(10);
 const VOLUME_STEP: u16 = u16::MAX / 20;
 const VOLUME_CELLS: u32 = 10;
 const PERCENT: u32 = 100;
-const EQUALIZER_LEVELS: [char; 8] = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
-const EQUALIZER_PATTERN: [usize; 12] = [2, 5, 7, 4, 6, 3, 1, 4, 7, 5, 2, 6];
-const EQUALIZER_BARS: usize = 4;
-const EQUALIZER_SPREAD: usize = 5;
 
 /// What the speaker reports it is playing.
 #[derive(Clone, PartialEq)]
@@ -332,19 +328,6 @@ impl Jukebox {
             Repeat::Off | Repeat::Context => "↻ Repeat",
             Repeat::Track => "↻ Repeat one",
         }
-    }
-
-    pub(super) fn equalizer(&self) -> String {
-        if !self.is_playing() {
-            return EQUALIZER_LEVELS[0].to_string().repeat(EQUALIZER_BARS);
-        }
-        let tick = self.clock.get();
-        (0..EQUALIZER_BARS)
-            .map(|bar| {
-                let step = (tick + bar * EQUALIZER_SPREAD) % EQUALIZER_PATTERN.len();
-                EQUALIZER_LEVELS[EQUALIZER_PATTERN[step]]
-            })
-            .collect()
     }
 }
 
