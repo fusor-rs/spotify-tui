@@ -15,6 +15,8 @@ const PIXELS: u32 = 160;
 /// Spotify sends 64, 300 and 640 pixel covers; the smallest that is sharp enough wins.
 const SHARP_ENOUGH: i32 = 160;
 const CHUNK: usize = 4096;
+/// The radius of the rounded corners, as a share of the cover's side.
+const CORNER: f32 = 0.12;
 const PLACEHOLDER: char = '\u{10EEEE}';
 /// The first row and column diacritics of kitty's `rowcolumn-diacritics.txt`.
 const DIACRITICS: [char; COLUMNS] = [
@@ -55,7 +57,7 @@ pub(crate) fn pick<'a>(sizes: impl Iterator<Item = (i32, &'a str)>) -> Option<St
         .map(|(_, url)| (*url).to_owned())
 }
 
-/// Downloads a cover and shrinks it to raw RGB pixels.
+/// Downloads a cover and shrinks it to raw RGBA pixels, corners rounded.
 pub(crate) async fn fetch(
     http: reqwest::Client,
     url: String,
@@ -71,10 +73,32 @@ pub(crate) async fn fetch(
     .await??;
     let picture = image::load_from_memory(&bytes)
         .map_err(|error| crate::spotify::Error::Cover(error.to_string()))?;
-    Ok(picture
+    let mut pixels = picture
         .resize_exact(PIXELS, PIXELS, FilterType::Triangle)
-        .to_rgb8()
-        .into_raw())
+        .to_rgba8();
+    round_corners(&mut pixels);
+    Ok(pixels.into_raw())
+}
+
+/// Makes the corners transparent, with a smooth edge one pixel wide.
+fn round_corners(pixels: &mut image::RgbaImage) {
+    let side = pixels.width() as f32;
+    let radius = side * CORNER;
+    for (x, y, pixel) in pixels.enumerate_pixels_mut() {
+        let coverage = corner_coverage(x as f32 + 0.5, y as f32 + 0.5, side, radius);
+        pixel[3] = (f32::from(pixel[3]) * coverage).round() as u8;
+    }
+}
+
+/// How much of the pixel centered on (`x`, `y`) lies inside the rounded square.
+fn corner_coverage(x: f32, y: f32, side: f32, radius: f32) -> f32 {
+    // The distance past the nearest corner's circle center, along each axis.
+    let outside_x = (radius - x).max(x - (side - radius)).max(0.0);
+    let outside_y = (radius - y).max(y - (side - radius)).max(0.0);
+    if outside_x == 0.0 || outside_y == 0.0 {
+        return 1.0;
+    }
+    (radius - outside_x.hypot(outside_y) + 0.5).clamp(0.0, 1.0)
 }
 
 /// Replaces the cover the terminal holds with `pixels`.
@@ -86,7 +110,7 @@ pub(crate) fn show(pixels: &[u8]) -> io::Result<()> {
     for (index, chunk) in chunks.iter().enumerate() {
         let more = u8::from(index + 1 < chunks.len());
         let keys = if index == 0 {
-            format!("a=T,U=1,i={id},f=24,s={PIXELS},v={PIXELS},c={COLUMNS},r={ROWS},q=2,m={more}")
+            format!("a=T,U=1,i={id},f=32,s={PIXELS},v={PIXELS},c={COLUMNS},r={ROWS},q=2,m={more}")
         } else {
             format!("q=2,m={more}")
         };
@@ -132,4 +156,21 @@ fn through_tmux(command: String) -> String {
         return command;
     }
     format!("\x1bPtmux;{}\x1b\\", command.replace('\x1b', "\x1b\x1b"))
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn corners_are_cut_round() {
+        let (side, radius) = (100.0, 12.0);
+        let coverage = |x, y| super::corner_coverage(x, y, side, radius);
+        assert_eq!(coverage(0.5, 0.5), 0.0);
+        assert_eq!(coverage(99.5, 99.5), 0.0);
+        assert_eq!(coverage(50.0, 0.5), 1.0);
+        assert_eq!(coverage(0.5, 50.0), 1.0);
+        assert_eq!(coverage(12.0, 12.0), 1.0);
+        let on_circle = 12.0 - 12.0 * std::f32::consts::FRAC_1_SQRT_2;
+        let edge = coverage(on_circle, on_circle);
+        assert!(edge > 0.3 && edge < 0.7, "{edge}");
+    }
 }
