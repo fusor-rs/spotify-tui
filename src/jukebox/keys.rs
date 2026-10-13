@@ -49,6 +49,7 @@ impl Jukebox {
             Key::Char('z') => self.queue_selected()?,
             Key::Char('/') => self.start_search(),
             Key::Char('?') => self.open_help(),
+            Key::Char('f') => self.start_library_search(),
             Key::Char('q') => quit()?,
             Key::Escape | Key::Backspace => return Ok(self.back()),
             _ => return Ok(false),

@@ -8,6 +8,8 @@ const EPISODE_PREFIX: &str = "spotify:episode:";
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum Source {
     Search(String),
+    /// A search of the user's Liked Songs and playlists.
+    Library(String),
     Liked,
     Recent,
     Playlist(Rc<Playlist>),
@@ -112,6 +114,8 @@ impl Source {
         match self {
             Self::Search(text) if text.is_empty() => "Search".into(),
             Self::Search(text) => format!("Search · “{text}”"),
+            Self::Library(text) if text.is_empty() => "Search your library".into(),
+            Self::Library(text) => format!("Your library · “{text}”"),
             Self::Liked => "Liked Songs".into(),
             Self::Recent => "Recently played".into(),
             Self::Playlist(playlist) => playlist.name.clone(),
@@ -125,6 +129,10 @@ impl Source {
         match self {
             Self::Search(text) if text.is_empty() => "Type what you want to hear and press Enter.",
             Self::Search(_) => "Nothing matched. Try other words.",
+            Self::Library(text) if text.is_empty() => {
+                "Type what to find in your Liked Songs and playlists, then press Enter."
+            }
+            Self::Library(_) => "Nothing in your Liked Songs matched. Try other words.",
             Self::Liked => "Songs you like in Spotify appear here.",
             Self::Recent => "Nothing played recently.",
             Self::Playlist(_) | Self::Album(_) | Self::Artist(_) | Self::Show(_) => {

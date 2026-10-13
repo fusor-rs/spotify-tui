@@ -1,3 +1,4 @@
+use super::library_search::{LikedCache, liked_tracks, matching_tracks};
 use super::{
     Jukebox, Tone,
     listing::{Listing, Loading, Row, Source},
@@ -57,7 +58,8 @@ impl Jukebox {
         let generation = self.next_generation();
         self.listing.set(Listing::new(source.clone()));
         self.window.update(|window| window.select(0, 0));
-        let task = async move { resolve(&catalog, &source).await };
+        let liked = self.liked.clone();
+        let task = async move { resolve(&catalog, &source, &liked).await };
         self.load(generation, task, |jukebox, uris| {
             jukebox.listing.update(|listing| listing.uris = uris.into());
             jukebox.load_more();
@@ -144,29 +146,54 @@ impl Jukebox {
             return;
         };
         match key {
-            Key::Enter => {
-                let text = self.search.with_untracked(|text| text.trim().to_owned());
-                if !text.is_empty() {
-                    self.open(Source::Search(text));
-                    self.focus("tracks");
-                }
-            }
+            Key::Enter => self.run_search(),
             Key::Escape | Key::Down => self.focus("tracks"),
             _ => return,
         }
         event.prevent_default();
     }
 
+    /// Opens the search in the field, in the catalog or the library as the list is.
+    fn run_search(self: &Rc<Self>) {
+        let text = self.search.with_untracked(|text| text.trim().to_owned());
+        if text.is_empty() {
+            return;
+        }
+        let library = self
+            .listing
+            .with_untracked(|listing| matches!(listing.source, Source::Library(_)));
+        self.open(if library {
+            Source::Library(text)
+        } else {
+            Source::Search(text)
+        });
+        self.focus("tracks");
+    }
+
     pub(super) fn start_search(self: &Rc<Self>) {
-        if !self.searching() {
+        if !self.searching_catalog() {
             self.open(Source::Search(String::new()));
         }
         self.focus("search");
     }
 
+    /// Whether the search field shows, for the catalog or the library.
     pub(super) fn searching(&self) -> bool {
         self.listing
+            .with(|listing| matches!(listing.source, Source::Search(_) | Source::Library(_)))
+    }
+
+    pub(super) fn searching_catalog(&self) -> bool {
+        self.listing
             .with(|listing| matches!(listing.source, Source::Search(_)))
+    }
+
+    pub(super) fn search_placeholder(&self) -> &'static str {
+        if self.searching_library() {
+            "Your Liked Songs and playlists… then Enter"
+        } else {
+            "Songs, artists, albums, podcasts… then Enter"
+        }
     }
 
     pub(super) fn navigate(self: &Rc<Self>, event: &Event) -> Result<(), Error> {
@@ -272,7 +299,7 @@ impl Jukebox {
                     uri: show.uri.clone(),
                     track,
                 },
-                Source::Search(_) | Source::Recent => Play::Tracks {
+                Source::Search(_) | Source::Library(_) | Source::Recent => Play::Tracks {
                     uris: listing.uris.to_vec(),
                     track,
                 },
@@ -371,10 +398,18 @@ impl Jukebox {
     }
 }
 
-async fn resolve(catalog: &Catalog, source: &Source) -> Result<Vec<String>, spotify::Error> {
+async fn resolve(
+    catalog: &Catalog,
+    source: &Source,
+    liked: &LikedCache,
+) -> Result<Vec<String>, spotify::Error> {
     let context = match source {
-        Source::Search(text) if text.is_empty() => return Ok(Vec::new()),
+        Source::Search(text) | Source::Library(text) if text.is_empty() => return Ok(Vec::new()),
         Source::Recent => return catalog.recent_tracks().await,
+        Source::Library(text) => {
+            let tracks = liked_tracks(catalog, liked).await?;
+            return Ok(matching_tracks(&tracks, text));
+        }
         Source::Search(text) => search_uri(text),
         Source::Liked => catalog.liked_uri(),
         Source::Playlist(playlist) => return catalog.playlist_tracks(playlist.uri.clone()).await,

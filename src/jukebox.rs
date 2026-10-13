@@ -1,5 +1,6 @@
 mod browse;
 mod keys;
+mod library_search;
 mod listing;
 mod playback;
 mod results;
@@ -63,6 +64,8 @@ pub(crate) struct Jukebox {
     search: Signal<String>,
     /// The artists, albums, playlists and podcasts of the last search.
     found: Signal<Option<Found>>,
+    /// The Liked Songs with their details, once a library search loaded them.
+    liked: library_search::LikedCache,
     now: Signal<NowPlaying>,
     clock: Signal<usize>,
     bar_width: Signal<usize>,
@@ -95,6 +98,7 @@ impl FromInputs for Jukebox {
             generation: Cell::new(0),
             search: signal(String::new()),
             found: signal(None),
+            liked: Rc::default(),
             now: signal(NowPlaying::default()),
             clock: signal(0),
             bar_width: signal(0),

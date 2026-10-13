@@ -1,8 +1,10 @@
 <template rust:component="Shelves">
   <section class="shelves" on:keydown="state.jukebox.leave_shelves(&event)">
     <p class="pane-title">YOUR LIBRARY</p>
-    <button class="shelf" class:current="{{ state.jukebox.searching() }}"
+    <button class="shelf" class:current="{{ state.jukebox.searching_catalog() }}"
             on:click="state.jukebox.start_search()">⌕ Search</button>
+    <button class="shelf" class:current="{{ state.jukebox.searching_library() }}"
+            on:click="state.jukebox.start_library_search()">⌕ Search your library</button>
     <button class="shelf" class:current="{{ state.jukebox.is_current(&Source::Liked) }}"
             on:click="state.jukebox.open_shelf(Source::Liked)">♥ Liked Songs</button>
     <button class="shelf" class:current="{{ state.jukebox.is_current(&Source::Recent) }}"
