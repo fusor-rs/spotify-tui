@@ -91,6 +91,14 @@ th, td { padding: 0 1ch 0 0; white-space: pre; overflow: hidden; }
 .bar-text { white-space: pre; overflow: hidden; }
 .played { color: #1DB954; }
 .left { color: #3E3E3E; }
+/* The edge cell of the progress bar, from gray to green in eighths. */
+.edge1 { color: #3A4D41; }
+.edge2 { color: #365D44; }
+.edge3 { color: #326C46; }
+.edge4 { color: #2E7C49; }
+.edge5 { color: #298B4C; }
+.edge6 { color: #259A4E; }
+.edge7 { color: #21AA51; }
 .volume { color: #B3B3B3; white-space: pre; }
 
 .notice { height: 1ch; padding: 0 1ch; white-space: pre; overflow: hidden; color: #1DB954; }

@@ -22,6 +22,15 @@
       <div class="bar" on:resize="state.jukebox.measure_bar(&event)">
         <p class="bar-text"><span class="played">{{
           state.jukebox.progress_played()
+        }}</span><span class="left"
+          class:edge1="{{ state.jukebox.edge_level(1) }}"
+          class:edge2="{{ state.jukebox.edge_level(2) }}"
+          class:edge3="{{ state.jukebox.edge_level(3) }}"
+          class:edge4="{{ state.jukebox.edge_level(4) }}"
+          class:edge5="{{ state.jukebox.edge_level(5) }}"
+          class:edge6="{{ state.jukebox.edge_level(6) }}"
+          class:edge7="{{ state.jukebox.edge_level(7) }}">{{
+          state.jukebox.progress_edge()
         }}</span><span class="left">{{ state.jukebox.progress_left() }}</span></p>
       </div>
       <p class="time">{{ state.jukebox.length_label() }}</p>

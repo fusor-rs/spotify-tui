@@ -15,6 +15,8 @@ const VOLUME_CELLS: u32 = 10;
 const PERCENT: u32 = 100;
 const EQUALIZER_LEVELS: [char; 8] = ['▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
 const EQUALIZER_BARS: usize = 4;
+/// Shades of the progress bar's edge cell between gray and green.
+const PROGRESS_STEPS: usize = 8;
 /// The equalizer moves at 60 frames per second while music plays.
 const FRAME: Duration = Duration::from_millis(16);
 const FRAMES_PER_SECOND: f64 = 60.0;
@@ -301,26 +303,37 @@ impl Jukebox {
         label(self.length())
     }
 
-    /// Cells of the progress bar that are played, including the playhead.
-    fn played_cells(&self) -> usize {
-        let width = self.bar_width.get();
+    /// The progress bar at this frame: it moves with the equalizer while music plays.
+    fn progress(&self) -> Progress {
+        self.frame.get();
         let length = self.length();
-        if length.is_zero() || width == 0 {
-            return 0;
-        }
-        let fraction = self.elapsed().as_secs_f64() / length.as_secs_f64();
-        ((fraction * width as f64).round() as usize).clamp(1, width)
+        let fraction = if length.is_zero() {
+            0.0
+        } else {
+            self.elapsed().as_secs_f64() / length.as_secs_f64()
+        };
+        Progress::new(fraction, self.bar_width.get())
     }
 
     pub(super) fn progress_played(&self) -> String {
-        match self.played_cells() {
-            0 => String::new(),
-            cells => format!("{}●", "━".repeat(cells - 1)),
+        "━".repeat(self.progress().played)
+    }
+
+    pub(super) fn progress_edge(&self) -> &'static str {
+        if self.progress().edge.is_some() {
+            "━"
+        } else {
+            ""
         }
     }
 
+    /// Whether the cell between played and left shows `level` eighths of green.
+    pub(super) fn edge_level(&self, level: u8) -> bool {
+        self.progress().edge == Some(level)
+    }
+
     pub(super) fn progress_left(&self) -> String {
-        "─".repeat(self.bar_width.get().saturating_sub(self.played_cells()))
+        "━".repeat(self.progress().left)
     }
 
     pub(super) fn measure_bar(&self, event: &Event) {
@@ -364,6 +377,29 @@ impl Jukebox {
     }
 }
 
+/// The cells of the progress bar. The one between the played and left parts
+/// fades from gray to green in eighths, so the bar moves smoother than a cell.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct Progress {
+    played: usize,
+    /// Eighths of green in the edge cell, from 0 to 7.
+    edge: Option<u8>,
+    left: usize,
+}
+
+impl Progress {
+    fn new(fraction: f64, width: usize) -> Self {
+        let eighths = (fraction.clamp(0.0, 1.0) * (width * PROGRESS_STEPS) as f64).round() as usize;
+        let played = (eighths / PROGRESS_STEPS).min(width);
+        let edge = (played < width).then_some((eighths % PROGRESS_STEPS) as u8);
+        Self {
+            played,
+            edge,
+            left: width - played - usize::from(edge.is_some()),
+        }
+    }
+}
+
 /// The bars at `frame`: each follows the sum of its two waves.
 fn equalizer(frame: u64) -> String {
     let seconds = frame as f64 / FRAMES_PER_SECOND;
@@ -385,6 +421,29 @@ fn label(length: Duration) -> String {
 #[cfg(test)]
 mod tests {
     use super::{EQUALIZER_BARS, equalizer};
+
+    #[test]
+    fn the_progress_bar_moves_in_eighths_of_a_cell() {
+        let progress = |fraction| super::Progress::new(fraction, 10);
+        let parts = |fraction| {
+            let bar = progress(fraction);
+            (bar.played, bar.edge, bar.left)
+        };
+        assert_eq!(parts(0.0), (0, Some(0), 9));
+        assert_eq!(parts(0.05), (0, Some(4), 9));
+        assert_eq!(parts(0.1), (1, Some(0), 8));
+        assert_eq!(parts(0.4875), (4, Some(7), 5));
+        assert_eq!(parts(1.0), (10, None, 0));
+        assert_eq!(parts(2.0), (10, None, 0));
+        assert_eq!(
+            super::Progress::new(0.5, 0),
+            super::Progress {
+                played: 0,
+                edge: None,
+                left: 0,
+            }
+        );
+    }
 
     #[test]
     fn the_equalizer_moves_a_little_each_frame() {
