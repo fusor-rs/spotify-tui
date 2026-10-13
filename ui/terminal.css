@@ -77,6 +77,15 @@ th, td { padding: 0 1ch 0 0; white-space: pre; overflow: hidden; }
   border-color: #1DB954;
   padding: 0 1ch;
 }
+/* The border fades from green to gray when music pauses: see run_equalizer. */
+.paused1 { border-color: #24AC54; }
+.paused2 { border-color: #2AA054; }
+.paused3 { border-color: #319354; }
+.paused4 { border-color: #388654; }
+.paused5 { border-color: #3F7953; }
+.paused6 { border-color: #466C53; }
+.paused7 { border-color: #4C6053; }
+.paused8 { border-color: #535353; }
 .track-line { flex-direction: row; height: 2ch; gap: 2ch; }
 .track-text { flex-grow: 1; flex-shrink: 1; min-width: 0; }
 .track-title { height: 1ch; font-weight: bold; white-space: pre; overflow: hidden; }

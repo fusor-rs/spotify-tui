@@ -1,5 +1,13 @@
 <template rust:component="PlayerBar">
-  <section class="now-playing">
+  <section class="now-playing"
+           class:paused1="{{ state.jukebox.border_fade(1) }}"
+           class:paused2="{{ state.jukebox.border_fade(2) }}"
+           class:paused3="{{ state.jukebox.border_fade(3) }}"
+           class:paused4="{{ state.jukebox.border_fade(4) }}"
+           class:paused5="{{ state.jukebox.border_fade(5) }}"
+           class:paused6="{{ state.jukebox.border_fade(6) }}"
+           class:paused7="{{ state.jukebox.border_fade(7) }}"
+           class:paused8="{{ state.jukebox.border_fade(8) }}">
     <div class="track-line">
       <div class="track-text">
         <p class="track-title">{{ state.jukebox.track_title() }}</p>

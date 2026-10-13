@@ -19,6 +19,10 @@ const EQUALIZER_BARS: usize = 4;
 const PROGRESS_STEPS: usize = 8;
 /// The equalizer moves at 60 frames per second while music plays.
 const FRAME: Duration = Duration::from_millis(16);
+/// The player's border fades from green to gray in eighths when music pauses,
+/// one eighth every two frames, and back when it plays.
+pub(super) const FADE_LEVELS: u8 = 8;
+const FRAMES_PER_FADE_LEVEL: usize = 2;
 const FRAMES_PER_SECOND: f64 = 60.0;
 /// Two waves per bar, in radians per second, so that no two bars move alike.
 const EQUALIZER_WAVES: [(f64, f64); EQUALIZER_BARS] =
@@ -105,18 +109,32 @@ impl Jukebox {
 
     /// Counts frames while music plays; paused, it checks four times a second.
     async fn run_equalizer(self: Rc<Self>) {
+        let mut frames: usize = 0;
         loop {
             let playing = self.now.with_untracked(|now| now.playing);
-            let Ok(sleep) = self.services.sleep(if playing { FRAME } else { TICK }) else {
+            let target = if playing { 0 } else { FADE_LEVELS };
+            let fading = self.border_fade.get_untracked() != target;
+            let pause = if playing || fading { FRAME } else { TICK };
+            let Ok(sleep) = self.services.sleep(pause) else {
                 return;
             };
             if sleep.await.is_err() {
                 return;
             }
+            frames = frames.wrapping_add(1);
             if playing {
                 self.frame.update(|frame| *frame += 1);
             }
+            if fading && frames.is_multiple_of(FRAMES_PER_FADE_LEVEL) {
+                self.border_fade
+                    .update(|level| *level = step_toward(*level, target));
+            }
         }
+    }
+
+    /// Whether the player's border shows `level` eighths of the way from green to gray.
+    pub(super) fn border_fade(&self, level: u8) -> bool {
+        self.border_fade.get() == level
     }
 
     pub(super) fn follow_player(self: &Rc<Self>, events: PlayerEventChannel) -> Result<(), Error> {
@@ -411,6 +429,11 @@ fn equalizer(frame: u64) -> String {
             EQUALIZER_LEVELS[(wave * top).round() as usize]
         })
         .collect()
+}
+
+/// One fade level closer to `target`.
+fn step_toward(level: u8, target: u8) -> u8 {
+    if level < target { level + 1 } else { level - 1 }
 }
 
 fn label(length: Duration) -> String {

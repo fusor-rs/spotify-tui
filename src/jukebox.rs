@@ -63,6 +63,8 @@ pub(crate) struct Jukebox {
     clock: Signal<usize>,
     /// Frames of the equalizer, which counts faster than the clock.
     frame: Signal<u64>,
+    /// How far the player's border has faded from green to gray, in eighths.
+    border_fade: Signal<u8>,
     bar_width: Signal<usize>,
     help: Signal<bool>,
     notice: Signal<Option<Notice>>,
@@ -95,6 +97,8 @@ impl FromInputs for Jukebox {
             now: signal(NowPlaying::default()),
             clock: signal(0),
             frame: signal(0),
+            // Nothing plays yet, so the border starts gray.
+            border_fade: signal(playback::FADE_LEVELS),
             bar_width: signal(0),
             help: signal(false),
             notice: signal(None),
