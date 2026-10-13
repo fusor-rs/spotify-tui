@@ -24,7 +24,9 @@ const STATUS_OK: i32 = 200;
 /// Reads the library and catalog through the same session that plays audio.
 #[derive(Clone)]
 pub(crate) struct Catalog {
-    session: Session,
+    pub(super) session: Session,
+    /// For requests outside librespot, such as the sections of a search.
+    pub(super) http: reqwest::Client,
 }
 
 #[derive(Deserialize)]
@@ -41,7 +43,10 @@ struct PlayContext {
 
 impl Catalog {
     pub(crate) fn new(session: Session) -> Self {
-        Self { session }
+        Self {
+            session,
+            http: reqwest::Client::new(),
+        }
     }
 
     pub(crate) fn liked_uri(&self) -> String {
@@ -170,7 +175,7 @@ pub(crate) fn search_uri(text: &str) -> String {
 }
 
 /// librespot's requests are `Send`; they run on the Tokio runtime, not the UI thread.
-async fn run<T: Send + 'static>(
+pub(super) async fn run<T: Send + 'static>(
     task: impl Future<Output = Result<T, Error>> + Send + 'static,
 ) -> Result<T, Error> {
     tokio::spawn(task).await?

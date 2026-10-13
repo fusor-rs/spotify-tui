@@ -25,7 +25,7 @@ impl Jukebox {
         self.focus("tracks");
     }
 
-    fn drill(self: &Rc<Self>, source: Source) {
+    pub(super) fn drill(self: &Rc<Self>, source: Source) {
         let current = (self.listing.get_untracked(), self.window.get_untracked());
         self.history.borrow_mut().push(current);
         self.show(source);
@@ -49,6 +49,11 @@ impl Jukebox {
         let Some(catalog) = self.catalog() else {
             return;
         };
+        if let Source::Search(text) = &source
+            && !text.is_empty()
+        {
+            self.load_results(text);
+        }
         let generation = self.next_generation();
         self.listing.set(Listing::new(source.clone()));
         self.window.update(|window| window.select(0, 0));
@@ -169,6 +174,16 @@ impl Jukebox {
             EventPayload::Input(Input::Key {
                 key: Key::Enter, ..
             }) => self.play_selected()?,
+            // Tab goes to the boxes of a search, or on as usual without them.
+            EventPayload::Input(Input::Key {
+                key: Key::Tab,
+                modifiers,
+                ..
+            }) if !modifiers.shift => {
+                if !self.enter_results() {
+                    return Ok(());
+                }
+            }
             EventPayload::Input(Input::Key { key, modifiers, .. })
                 if !modifiers.control && !modifiers.alt && !modifiers.super_key =>
             {

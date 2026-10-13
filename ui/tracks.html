@@ -8,7 +8,7 @@
            class:hidden="{{ !state.jukebox.searching() }}"
            class:placeholder="{{ state.jukebox.search.with(String::is_empty) }}"
            on:keydown="state.jukebox.submit_search(&event)"
-           placeholder="Songs or artists… then Enter">
+           placeholder="Songs, artists, albums, podcasts… then Enter">
     <section id="tracks" tabindex="0" autofocus on:resize="state.jukebox.resize(&event)"
              on:keydown="state.jukebox.navigate(&event)"
              on:scroll="state.jukebox.navigate(&event)">
@@ -38,6 +38,9 @@
         <p class="empty">{{ state.jukebox.listing_empty().unwrap_or_default() }}</p>
       </If>
     </section>
+    <If condition="{{ state.jukebox.results_shown() }}">
+      <SearchResults jukebox="{{ state.jukebox.clone() }}"></SearchResults>
+    </If>
     <p class="position">{{ state.jukebox.position() }}</p>
   </section>
 </template>

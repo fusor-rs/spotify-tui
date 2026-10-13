@@ -3,11 +3,14 @@ mod catalog;
 mod model;
 #[cfg(target_os = "linux")]
 mod mpris;
+mod search;
 mod speaker;
 
 pub(crate) use auth::{Authorization, Token, forget, stored_refresh_token};
 pub(crate) use catalog::{Catalog, search_uri};
-pub(crate) use model::{Album, Artist, Playlist, Repeat, Track};
+pub(crate) use model::{
+    Album, Artist, Playlist, Repeat, SearchItem, SearchKind, SearchResults, Track,
+};
 pub(crate) use speaker::{Command, DEVICE_NAME, Mode, Play, Speaker};
 
 #[derive(Debug, thiserror::Error)]
@@ -30,6 +33,8 @@ pub(crate) enum Error {
     Keychain(#[from] keyring::Error),
     #[error("No audio output is available on this computer")]
     NoAudio,
+    #[error("Spotify search could not find artists, albums, playlists or podcasts ({0})")]
+    Search(String),
     #[error("A Spotify request stopped unexpectedly ({0})")]
     Stopped(#[from] tokio::task::JoinError),
 }
