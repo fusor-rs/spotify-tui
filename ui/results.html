@@ -1,11 +1,13 @@
 <template rust:component="SearchResults">
   <div id="results" class="results" on:keydown="state.jukebox.results_key(&event)">
     <ForEach items="{{ state.jukebox.result_sections() }}" key="{{ |section| section.key.clone() }}" item="section">
-      <div class="results-box">
+      <div class="results-box" class:active="{{ state.jukebox.box_focused(section.get().title) }}">
         <p class="results-title">{{ section.get().title }}</p>
         <div class="results-rows" class:hidden="{{ section.get().rows.is_empty() }}">
           <ForEach items="{{ section.get().rows.clone() }}" key="{{ |row| row.item.uri.clone() }}" item="row">
-            <button class="result" on:click="state.jukebox.open_result(&row.get().item)">{{
+            <button class="result" on:click="state.jukebox.open_result(&row.get().item)"
+                    on:focus="state.jukebox.focus_result(Some(section.get().title))"
+                    on:blur="state.jukebox.focus_result(None)">{{
               row.get().label.clone()
             }}</button>
           </ForEach>

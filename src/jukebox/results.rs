@@ -154,6 +154,15 @@ impl Jukebox {
             .unwrap_or_default()
     }
 
+    /// Outlines the box whose result has the focus; hypercmd has no :focus-within.
+    pub(super) fn focus_result(&self, title: Option<&'static str>) {
+        self.focused_box.set(title);
+    }
+
+    pub(super) fn box_focused(&self, title: &str) -> bool {
+        self.focused_box.get() == Some(title)
+    }
+
     pub(super) fn open_result(self: &Rc<Self>, item: &SearchItem) {
         self.drill(source(item));
         self.focus("tracks");
@@ -182,10 +191,22 @@ impl Jukebox {
             return;
         };
         let target = match key {
-            Key::Tab if !modifiers.shift => {
-                self.focus("tracks");
-                event.prevent_default();
-                return;
+            // Tab visits the boxes in turn, then the track list; Shift+Tab goes back.
+            Key::Tab => {
+                let back = modifiers.shift;
+                let next = if back {
+                    column.checked_sub(1)
+                } else {
+                    Some(column + 1)
+                };
+                match next.and_then(|column| boxes.get(column)) {
+                    Some(buttons) => buttons.get(row).or(buttons.last()),
+                    None => {
+                        self.focus("tracks");
+                        event.prevent_default();
+                        return;
+                    }
+                }
             }
             Key::Char('j') | Key::Down => boxes[column].get(row + 1),
             Key::Char('k') | Key::Up => row.checked_sub(1).and_then(|row| boxes[column].get(row)),
