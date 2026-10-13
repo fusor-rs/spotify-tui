@@ -1,6 +1,6 @@
-use super::{Album, Artist, Error, Playlist, Track};
+use super::{Album, Artist, Error, Playlist, PlaylistDetails, Track};
 use http::Method;
-use librespot_core::{Session, SpotifyUri};
+use librespot_core::{Session, SpotifyId, SpotifyUri};
 use librespot_protocol::{
     extended_metadata::{BatchedEntityRequest, EntityRequest, ExtensionQuery},
     extension_kind::ExtensionKind,
@@ -19,6 +19,11 @@ const TRACK_PREFIX: &str = "spotify:track:";
 const PLAYLIST_PREFIX: &str = "spotify:playlist:";
 const SEARCH_PREFIX: &str = "spotify:search:";
 const STATUS_OK: i32 = 200;
+
+#[derive(Deserialize)]
+struct Profile {
+    name: Option<String>,
+}
 
 /// Reads the library and catalog through the same session that plays audio.
 #[derive(Clone)]
@@ -109,6 +114,26 @@ impl Catalog {
         .await
     }
 
+    /// The name, description and owner of a playlist.
+    pub(crate) async fn playlist_details(&self, uri: String) -> Result<PlaylistDetails, Error> {
+        let session = self.session.clone();
+        run(async move {
+            let id = SpotifyId::from_base62(uri.strip_prefix(PLAYLIST_PREFIX).unwrap_or(&uri))?;
+            let bytes = session.spclient().get_playlist(&id).await?;
+            let playlist = SelectedListContent::parse_from_bytes(&bytes)?;
+            let attributes = &playlist.attributes;
+            let username = playlist.owner_username().to_owned();
+            let owner = owner_name(&session, &username).await.unwrap_or(username);
+            Ok(PlaylistDetails {
+                uri,
+                name: attributes.name().to_owned(),
+                description: plain_text(attributes.description()),
+                owner,
+            })
+        })
+        .await
+    }
+
     /// Looks up many tracks in one request, in the order of `uris`; unavailable tracks are left out.
     pub(crate) async fn tracks(&self, uris: Vec<String>) -> Result<Vec<Track>, Error> {
         let session = self.session.clone();
@@ -156,6 +181,49 @@ async fn run<T: Send + 'static>(
     tokio::spawn(task).await?
 }
 
+/// The display name of a user, which their username is not always meant to be read as.
+async fn owner_name(session: &Session, username: &str) -> Option<String> {
+    let profile = session
+        .spclient()
+        .get_user_profile(username, Some(0), Some(0))
+        .await
+        .ok()?;
+    let profile: Profile = serde_json::from_slice(&profile).ok()?;
+    profile.name.filter(|name| !name.is_empty())
+}
+
+/// Playlist descriptions are HTML: links are kept as their text, entities decoded.
+fn plain_text(html: &str) -> String {
+    let mut text = String::with_capacity(html.len());
+    let mut in_tag = false;
+    let mut characters = html.chars().peekable();
+    while let Some(character) = characters.next() {
+        // A tag starts with a letter or a slash; a lone `<` is text.
+        let opens_tag = character == '<'
+            && characters
+                .peek()
+                .is_some_and(|next| next.is_ascii_alphabetic() || *next == '/');
+        match character {
+            _ if opens_tag => in_tag = true,
+            '>' if in_tag => in_tag = false,
+            _ if !in_tag => text.push(character),
+            _ => {}
+        }
+    }
+    [
+        ("&quot;", "\""),
+        ("&#x27;", "'"),
+        ("&#39;", "'"),
+        ("&lt;", "<"),
+        ("&gt;", ">"),
+        ("&amp;", "&"),
+    ]
+    .iter()
+    .fold(text, |text, (entity, character)| {
+        text.replace(entity, character)
+    })
+}
+
 fn unique_tracks(uris: impl Iterator<Item = String>) -> Vec<String> {
     let mut seen = HashSet::new();
     uris.filter(|uri| uri.starts_with(TRACK_PREFIX) && seen.insert(uri.clone()))
@@ -199,6 +267,17 @@ fn track(uri: &str, message: &metadata::Track) -> Result<Track, Error> {
 #[cfg(test)]
 mod tests {
     use super::{search_uri, unique_tracks};
+
+    #[test]
+    fn descriptions_lose_their_html() {
+        assert_eq!(
+            super::plain_text(
+                "Chill beats with <a href=\"spotify:playlist:x\">Lofi Girl</a> &amp; friends. It&#x27;s &quot;on&quot;"
+            ),
+            "Chill beats with Lofi Girl & friends. It's \"on\""
+        );
+        assert_eq!(super::plain_text("1 < 2"), "1 < 2");
+    }
 
     #[test]
     fn search_uris_encode_the_query() {

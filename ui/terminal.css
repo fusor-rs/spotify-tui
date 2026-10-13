@@ -46,6 +46,11 @@ button:focus { color: #FFFFFF; background-color: #2A2A2A; text-decoration: under
 .listing-heading { flex-direction: row; height: 1ch; gap: 2ch; padding: 0 1ch; }
 .listing-title { flex-grow: 1; flex-shrink: 1; min-width: 0; white-space: pre; overflow: hidden; }
 .listing-summary { color: #B3B3B3; white-space: pre; }
+.playlist-header { flex-shrink: 0; padding: 0 1ch 1ch 1ch; }
+.playlist-kind { height: 1ch; color: #B3B3B3; }
+.playlist-name { height: 1ch; white-space: pre; overflow: hidden; }
+.playlist-description { height: 1ch; color: #B3B3B3; white-space: pre; overflow: hidden; }
+.playlist-byline { height: 1ch; color: #B3B3B3; white-space: pre; overflow: hidden; }
 input { width: 100%; height: 3ch; border-style: rounded; border-color: #3E3E3E; padding: 0 1ch; }
 input:focus { border-color: #1DB954; border-style: solid; }
 #tracks {

@@ -1,11 +1,12 @@
 mod browse;
+mod header;
 mod keys;
 mod listing;
 mod playback;
 mod session;
 mod view;
 
-use crate::spotify::{self, Catalog, Playlist, Speaker};
+use crate::spotify::{self, Catalog, Playlist, PlaylistDetails, Speaker};
 use fusor::{FromInputs, OwnerHandle, Signal, signal};
 use hypercmd::{Error, Node, Services};
 use listing::{Listing, Source, Window};
@@ -63,6 +64,8 @@ pub(crate) struct Jukebox {
     clock: Signal<usize>,
     bar_width: Signal<usize>,
     help: Signal<bool>,
+    /// The details of the playlist opened last, for the header above its tracks.
+    playlist: Signal<Option<Rc<PlaylistDetails>>>,
     notice: Signal<Option<Notice>>,
     root: RefCell<Option<Node>>,
     saved_login: RefCell<Option<String>>,
@@ -94,6 +97,7 @@ impl FromInputs for Jukebox {
             clock: signal(0),
             bar_width: signal(0),
             help: signal(false),
+            playlist: signal(None),
             notice: signal(None),
             root: RefCell::new(None),
             saved_login: RefCell::new(startup.refresh_token),

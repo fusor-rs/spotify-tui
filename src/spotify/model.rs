@@ -25,6 +25,15 @@ pub(crate) struct Playlist {
     pub(crate) name: String,
 }
 
+/// What the header of a playlist shows, besides its number of tracks.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct PlaylistDetails {
+    pub(crate) uri: String,
+    pub(crate) name: String,
+    pub(crate) description: String,
+    pub(crate) owner: String,
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub(crate) enum Repeat {
     #[default]

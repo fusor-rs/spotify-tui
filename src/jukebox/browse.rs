@@ -48,6 +48,9 @@ impl Jukebox {
         let Some(catalog) = self.catalog() else {
             return;
         };
+        if let Source::Playlist(playlist) = &source {
+            self.load_playlist_header(&playlist.uri);
+        }
         let generation = self.next_generation();
         self.listing.set(Listing::new(source.clone()));
         self.window.update(|window| window.select(0, 0));
