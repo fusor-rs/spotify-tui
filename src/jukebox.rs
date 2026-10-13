@@ -1,3 +1,4 @@
+mod artist;
 mod browse;
 mod header;
 mod keys;
@@ -7,7 +8,7 @@ mod results;
 mod session;
 mod view;
 
-use crate::spotify::{self, Catalog, Playlist, PlaylistDetails, Speaker};
+use crate::spotify::{self, Catalog, Playlist, Speaker};
 use fusor::{FromInputs, OwnerHandle, Signal, signal};
 use hypercmd::{Error, Node, Services};
 use listing::{Listing, Source, Window};
@@ -69,10 +70,12 @@ pub(crate) struct Jukebox {
     clock: Signal<usize>,
     bar_width: Signal<usize>,
     help: Signal<bool>,
-    /// The details of the playlist opened last, for the header above its tracks.
-    playlist: Signal<Option<Rc<PlaylistDetails>>>,
-    /// Playlist headers already loaded, by playlist URI.
-    headers: RefCell<HashMap<String, Rc<PlaylistDetails>>>,
+    /// The header of the playlist or artist opened last, above its tracks.
+    header: Signal<Option<Rc<header::HeaderInfo>>>,
+    /// Headers already loaded, by playlist or artist URI.
+    headers: RefCell<HashMap<String, Rc<header::HeaderInfo>>>,
+    /// Artist pages already loaded, for their headers, tracks and boxes.
+    artists: artist::ArtistCache,
     /// Playlist headers on their way.
     fetching_headers: RefCell<HashSet<String>>,
     /// Whether the tracks of a playlist wait for its header.
@@ -111,7 +114,8 @@ impl FromInputs for Jukebox {
             clock: signal(0),
             bar_width: signal(0),
             help: signal(false),
-            playlist: signal(None),
+            header: signal(None),
+            artists: Rc::default(),
             headers: RefCell::new(HashMap::new()),
             fetching_headers: RefCell::new(HashSet::new()),
             header_pending: signal(false),

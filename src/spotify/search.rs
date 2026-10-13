@@ -80,26 +80,40 @@ struct Podcast {
 impl Catalog {
     /// Artists, albums, playlists and podcasts that match `text`.
     pub(crate) async fn search(&self, text: String) -> Result<SearchResults, Error> {
+        let variables = serde_json::json!({
+            "searchTerm": text,
+            "offset": 0,
+            "limit": SECTION_LENGTH,
+            "numberOfTopResults": SECTION_LENGTH,
+            "includeAudiobooks": false,
+            "includePreReleases": false,
+            "includeAuthors": false,
+            "includeArtistHasConcertsField": false,
+            "includeLocalConcertsField": false,
+        });
+        let body = self
+            .pathfinder(SEARCH_OPERATION, SEARCH_HASH, variables, Error::Search)
+            .await?;
+        results(&body)
+    }
+
+    /// Runs one of the persisted GraphQL queries of Spotify's desktop app, with
+    /// librespot's login5 token; `failed` names a refusal.
+    pub(super) async fn pathfinder(
+        &self,
+        operation: &'static str,
+        hash: &'static str,
+        variables: serde_json::Value,
+        failed: fn(String) -> Error,
+    ) -> Result<Vec<u8>, Error> {
         let (session, http) = (self.session.clone(), self.http.clone());
-        let body = super::catalog::run(async move {
+        super::catalog::run(async move {
             let token = session.login5().auth_token().await?.access_token;
             let client_token = session.spclient().client_token().await?;
             let request = serde_json::json!({
-                "operationName": SEARCH_OPERATION,
-                "variables": {
-                    "searchTerm": text,
-                    "offset": 0,
-                    "limit": SECTION_LENGTH,
-                    "numberOfTopResults": SECTION_LENGTH,
-                    "includeAudiobooks": false,
-                    "includePreReleases": false,
-                    "includeAuthors": false,
-                    "includeArtistHasConcertsField": false,
-                    "includeLocalConcertsField": false,
-                },
-                "extensions": {
-                    "persistedQuery": { "version": 1, "sha256Hash": SEARCH_HASH },
-                },
+                "operationName": operation,
+                "variables": variables,
+                "extensions": { "persistedQuery": { "version": 1, "sha256Hash": hash } },
             });
             let response = http
                 .post(SEARCH_URL)
@@ -110,12 +124,11 @@ impl Catalog {
                 .await?;
             let status = response.status();
             if !status.is_success() {
-                return Err(Error::Search(status.to_string()));
+                return Err(failed(status.to_string()));
             }
-            Ok(response.bytes().await?)
+            Ok(response.bytes().await?.to_vec())
         })
-        .await?;
-        results(&body)
+        .await
     }
 }
 

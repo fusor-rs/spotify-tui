@@ -36,6 +36,25 @@ pub(crate) struct PlaylistDetails {
     pub(crate) owner: String,
 }
 
+/// An artist's page: who they are, how many listen, and what they released.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct ArtistPage {
+    pub(crate) uri: String,
+    pub(crate) name: String,
+    pub(crate) verified: bool,
+    pub(crate) monthly_listeners: Option<u64>,
+    pub(crate) followers: Option<u64>,
+    pub(crate) world_rank: Option<u64>,
+    pub(crate) biography: String,
+    pub(crate) avatar: Option<String>,
+    /// The popular tracks and how often they were played, when Spotify says.
+    pub(crate) top_tracks: Vec<(String, Option<u64>)>,
+    pub(crate) albums: Vec<Rc<SearchItem>>,
+    pub(crate) singles: Vec<Rc<SearchItem>>,
+    pub(crate) appears_on: Vec<Rc<SearchItem>>,
+    pub(crate) related: Vec<Rc<SearchItem>>,
+}
+
 /// What a search result opens.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) enum SearchKind {

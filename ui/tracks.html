@@ -1,15 +1,13 @@
 <template rust:component="TrackList">
   <section class="listing">
-    <div class="playlist-header" class:hidden="{{ !state.jukebox.has_playlist_header() }}">
-      <p class="playlist-kind">PLAYLIST</p>
-      <h2 class="playlist-name">{{ state.jukebox.playlist_name() }}</h2>
-      <p class="playlist-description"
-         class:hidden="{{ state.jukebox.playlist_description().is_empty() }}">{{
-        state.jukebox.playlist_description()
-      }}</p>
-      <p class="playlist-byline">{{ state.jukebox.playlist_byline() }}</p>
+    <div class="header" class:hidden="{{ !state.jukebox.header_shown() }}">
+      <p class="header-kind">{{ state.jukebox.header_kind() }}</p>
+      <h2 class="header-name">{{ state.jukebox.header_name() }}</h2>
+      <p class="header-detail"
+         class:hidden="{{ state.jukebox.header_detail().is_empty() }}">{{ state.jukebox.header_detail() }}</p>
+      <p class="header-byline">{{ state.jukebox.header_byline() }}</p>
     </div>
-    <div class="listing-heading" class:hidden="{{ state.jukebox.has_playlist_header() }}">
+    <div class="listing-heading" class:hidden="{{ state.jukebox.header_shown() }}">
       <h2 class="listing-title">{{ state.jukebox.listing_title() }}</h2>
       <p class="listing-summary">{{ state.jukebox.listing_summary() }}</p>
     </div>
@@ -26,7 +24,7 @@
           <tr>
             <th class="number">#</th>
             <th class="title">Title</th>
-            <th class="artist">Artist</th>
+            <th class="artist">{{ state.jukebox.artist_heading() }}</th>
             <th class="album">Album</th>
             <th class="length">Time</th>
           </tr>

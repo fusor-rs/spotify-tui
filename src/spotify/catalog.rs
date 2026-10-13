@@ -244,7 +244,9 @@ pub(super) fn plain_text(html: &str) -> String {
         ("&amp;", "&"),
     ]
     .iter()
-    .fold(text, |text, (entity, character)| text.replace(entity, character))
+    .fold(text, |text, (entity, character)| {
+        text.replace(entity, character)
+    })
 }
 
 /// The tracks and episodes among `uris`, each once, in order.

@@ -38,6 +38,7 @@ pub(crate) struct Listing {
 #[derive(Clone, PartialEq)]
 pub(crate) struct Row {
     pub(crate) index: usize,
+    pub(crate) uri: String,
     pub(crate) marker: String,
     pub(crate) title: String,
     pub(crate) artist: String,
@@ -177,6 +178,7 @@ impl Listing {
                 let playing = playing == Some(track.uri.as_str());
                 Row {
                     index,
+                    uri: track.uri.clone(),
                     marker: if playing {
                         "♫".into()
                     } else {
