@@ -12,6 +12,7 @@
     <section id="tracks" tabindex="0" autofocus on:resize="state.jukebox.resize(&event)"
              on:keydown="state.jukebox.navigate(&event)"
              on:scroll="state.jukebox.navigate(&event)">
+      <div class="tracks-main">
       <table>
         <thead>
           <tr>
@@ -37,7 +38,12 @@
       <If condition="{{ state.jukebox.listing_empty().is_some() }}">
         <p class="empty">{{ state.jukebox.listing_empty().unwrap_or_default() }}</p>
       </If>
+      </div>
+      <div class="scrollbar">
+        <pre class="scroll-track">{{ state.jukebox.scrollbar()[0].clone() }}</pre>
+        <pre class="scroll-thumb">{{ state.jukebox.scrollbar()[1].clone() }}</pre>
+        <pre class="scroll-track">{{ state.jukebox.scrollbar()[2].clone() }}</pre>
+      </div>
     </section>
-    <p class="position">{{ state.jukebox.position() }}</p>
   </section>
 </template>

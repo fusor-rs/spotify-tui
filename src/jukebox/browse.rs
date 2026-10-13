@@ -327,18 +327,17 @@ impl Jukebox {
         self.listing.with(|listing| &listing.source == source)
     }
 
-    pub(super) fn position(&self) -> String {
+    /// The scrollbar beside the track list, as lines of its track, thumb and track.
+    pub(super) fn scrollbar(&self) -> [String; 3] {
         let window = self.window.get();
-        self.listing.with(|listing| {
-            if listing.tracks.is_empty() {
-                return String::new();
-            }
-            let back = if self.history.borrow().is_empty() {
-                ""
-            } else {
-                " · Esc back"
-            };
-            format!("{} of {}{back}", window.selected + 1, listing.uris.len())
+        let (before, thumb, after) = self
+            .listing
+            .with(|listing| window.scrollbar(listing.uris.len()));
+        [before, thumb, after].map(|lines| {
+            vec!["│"; lines].join(
+                "
+",
+            )
         })
     }
 }

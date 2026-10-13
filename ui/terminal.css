@@ -58,6 +58,12 @@ input:focus { border-color: #1DB954; border-style: solid; }
   padding: 0 1ch;
 }
 #tracks:focus { border-style: solid; border-color: #1DB954; }
+#tracks { flex-direction: row; gap: 1ch; }
+.tracks-main { flex-grow: 1; flex-shrink: 1; min-width: 0; min-height: 0; }
+/* Starts below the column headings, beside the rows. */
+.scrollbar { width: 1ch; flex-shrink: 0; padding: 1ch 0 0 0; }
+.scroll-track { color: #2A2A2A; }
+.scroll-thumb { color: #B3B3B3; }
 tr { height: 1ch; }
 th { color: #6A6A6A; font-weight: normal; }
 th, td { padding: 0 1ch 0 0; white-space: pre; overflow: hidden; }
@@ -68,7 +74,6 @@ th, td { padding: 0 1ch 0 0; white-space: pre; overflow: hidden; }
 .selected { background-color: #2A2A2A; }
 .playing { color: #1DB954; font-weight: bold; }
 .empty { padding: 1ch; color: #B3B3B3; }
-.position { height: 1ch; padding: 0 1ch; color: #6A6A6A; white-space: pre; overflow: hidden; }
 
 .now-playing {
   height: 5ch;
