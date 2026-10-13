@@ -41,6 +41,8 @@ pub(crate) struct Row {
     pub(crate) length: String,
     pub(crate) selected: bool,
     pub(crate) playing: bool,
+    /// Spotify cannot play it here: the row is grayed out.
+    pub(crate) unavailable: bool,
 }
 
 /// The visible slice of a list and its selected entry.
@@ -167,6 +169,7 @@ impl Listing {
                     length: duration(track.duration_ms),
                     selected: window.selected == index,
                     playing,
+                    unavailable: !track.playable,
                 }
             })
             .collect()

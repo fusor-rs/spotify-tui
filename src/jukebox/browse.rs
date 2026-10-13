@@ -225,6 +225,10 @@ impl Jukebox {
         let Some(track) = self.selected() else {
             return Ok(());
         };
+        if !track.playable {
+            self.inform("Spotify can't play this track here.");
+            return Ok(());
+        }
         let Some(catalog) = self.catalog() else {
             return Ok(());
         };

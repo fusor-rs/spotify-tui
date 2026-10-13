@@ -118,6 +118,7 @@ impl Catalog {
                 ..BatchedEntityRequest::default()
             };
             let response = session.spclient().get_extended_metadata(request).await?;
+            let listener = Listener::of(&session);
             let mut found = response
                 .extended_metadata
                 .iter()
@@ -125,7 +126,9 @@ impl Catalog {
                 .filter(|data| data.header.status_code == STATUS_OK)
                 .map(|data| {
                     let message = metadata::Track::parse_from_bytes(&data.extension_data.value)?;
-                    Ok((data.entity_uri.clone(), track(&data.entity_uri, &message)?))
+                    let found = track(&data.entity_uri, &message)?;
+                    let playable = listener.can_play(&message);
+                    Ok((data.entity_uri.clone(), Track { playable, ..found }))
                 })
                 .collect::<Result<HashMap<_, _>, Error>>()?;
             Ok(uris.iter().filter_map(|uri| found.remove(uri)).collect())
@@ -193,12 +196,99 @@ fn track(uri: &str, message: &metadata::Track) -> Result<Track, Error> {
             name: message.album.name().to_owned(),
         },
         duration_ms: u64::from(message.duration().unsigned_abs()),
+        playable: true,
     })
+}
+
+/// Where and on which offer the account listens, which decides what it can play.
+struct Listener {
+    country: String,
+    catalogue: String,
+}
+
+impl Listener {
+    fn of(session: &Session) -> Self {
+        let user = session.user_data();
+        Self {
+            catalogue: user
+                .attributes
+                .get("catalogue")
+                .cloned()
+                .unwrap_or_else(|| "premium".into()),
+            country: user.country,
+        }
+    }
+
+    /// librespot's rule: released, allowed here, and with audio of its own or a
+    /// replacement that Spotify relinks it to.
+    fn can_play(&self, track: &metadata::Track) -> bool {
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |since| {
+                i64::try_from(since.as_secs()).unwrap_or(i64::MAX)
+            });
+        track.earliest_live_timestamp() <= now
+            && self.allowed(&track.restriction)
+            && (!track.file.is_empty() || !track.alternative.is_empty())
+    }
+
+    /// The first restriction on the account's offer decides, by its list of
+    /// allowed or forbidden countries.
+    fn allowed(&self, restrictions: &[metadata::Restriction]) -> bool {
+        let Some(restriction) = restrictions
+            .iter()
+            .find(|restriction| restriction.catalogue_str.contains(&self.catalogue))
+        else {
+            return true;
+        };
+        let listed = |countries: &str| {
+            countries
+                .as_bytes()
+                .chunks(2)
+                .any(|code| code == self.country.as_bytes())
+        };
+        if restriction.has_countries_allowed() {
+            listed(restriction.countries_allowed())
+        } else if restriction.has_countries_forbidden() {
+            !listed(restriction.countries_forbidden())
+        } else {
+            true
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::{search_uri, unique_tracks};
+
+    #[test]
+    fn restrictions_decide_by_country_and_offer() {
+        use librespot_protocol::metadata::Restriction;
+        let listener = super::Listener {
+            country: "FR".into(),
+            catalogue: "premium".into(),
+        };
+        let restriction = |catalogue: &str, allowed: Option<&str>, forbidden: Option<&str>| {
+            let mut restriction = Restriction::new();
+            restriction.catalogue_str = vec![catalogue.into()];
+            if let Some(countries) = allowed {
+                restriction.set_countries_allowed(countries.into());
+            }
+            if let Some(countries) = forbidden {
+                restriction.set_countries_forbidden(countries.into());
+            }
+            restriction
+        };
+        assert!(listener.allowed(&[]));
+        assert!(listener.allowed(&[restriction("premium", Some("BEFRDE"), None)]));
+        assert!(!listener.allowed(&[restriction("premium", Some("BEDE"), None)]));
+        assert!(!listener.allowed(&[restriction("premium", None, Some("USFR"))]));
+        assert!(listener.allowed(&[restriction("premium", None, Some("USGB"))]));
+        // A restriction on another offer does not apply.
+        assert!(listener.allowed(&[restriction("free", Some("US"), None)]));
+        // Two-letter codes are not matched across their boundaries.
+        assert!(!listener.allowed(&[restriction("premium", Some("XFRX"), None)]));
+    }
 
     #[test]
     fn search_uris_encode_the_query() {

@@ -67,6 +67,8 @@ th, td { padding: 0 1ch 0 0; white-space: pre; overflow: hidden; }
 .length { width: 8ch; flex-shrink: 0; color: #B3B3B3; }
 .selected { background-color: #2A2A2A; }
 .playing { color: #1DB954; font-weight: bold; }
+/* Every cell of a track Spotify cannot play here, as Spotify's apps gray them. */
+.unavailable { color: #535353; }
 .empty { padding: 1ch; color: #B3B3B3; }
 .position { height: 1ch; padding: 0 1ch; color: #6A6A6A; white-space: pre; overflow: hidden; }
 

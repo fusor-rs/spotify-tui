@@ -17,6 +17,8 @@ pub(crate) struct Track {
     pub(crate) artists: Vec<Artist>,
     pub(crate) album: Album,
     pub(crate) duration_ms: u64,
+    /// Whether Spotify can play it for this account, here and now.
+    pub(crate) playable: bool,
 }
 
 #[derive(Clone, Debug, PartialEq)]

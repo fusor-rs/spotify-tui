@@ -25,11 +25,11 @@
         <tbody>
           <ForEach items="{{ state.jukebox.rows() }}" key="{{ |row| row.index }}">
             <tr class:selected="{{ item.get().selected }}" class:playing="{{ item.get().playing }}">
-              <td class="number">{{ item.get().marker }}</td>
-              <td class="title">{{ item.get().title }}</td>
-              <td class="artist">{{ item.get().artist }}</td>
-              <td class="album">{{ item.get().album }}</td>
-              <td class="length">{{ item.get().length }}</td>
+              <td class="number" class:unavailable="{{ item.get().unavailable }}">{{ item.get().marker }}</td>
+              <td class="title" class:unavailable="{{ item.get().unavailable }}">{{ item.get().title }}</td>
+              <td class="artist" class:unavailable="{{ item.get().unavailable }}">{{ item.get().artist }}</td>
+              <td class="album" class:unavailable="{{ item.get().unavailable }}">{{ item.get().album }}</td>
+              <td class="length" class:unavailable="{{ item.get().unavailable }}">{{ item.get().length }}</td>
             </tr>
           </ForEach>
         </tbody>
